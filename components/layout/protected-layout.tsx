@@ -1,0 +1,98 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { useAuth } from "@/app/auth-context"
+import { Activity, Menu, X, LogOut } from "lucide-react"
+import { SidebarNav } from "@/components/layout/sidebar-nav"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
+interface ProtectedLayoutProps {
+  children: React.ReactNode
+  title: string
+  description?: string
+}
+
+export function ProtectedLayout({ children, title, description }: ProtectedLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { user, logout } = useAuth()
+
+  return (
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <aside
+        className={`bg-sidebar border-r border-sidebar-border transition-all duration-300 ${
+          sidebarOpen ? "w-64" : "w-20"
+        } flex flex-col`}
+      >
+        {/* Logo */}
+        <div className="flex items-center justify-between px-6 py-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Activity className="w-6 h-6 text-primary-foreground" />
+            </div>
+            {sidebarOpen && <span className="text-sidebar-foreground font-bold text-lg">GPON</span>}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex-1 overflow-auto">{sidebarOpen && <SidebarNav />}</div>
+
+        {/* User Info and Logout */}
+        <div className="border-t border-sidebar-border p-4 space-y-3">
+          {sidebarOpen && (
+            <div className="px-2 text-sm">
+              <p className="font-medium text-sidebar-foreground truncate">{user?.name}</p>
+              <p className="text-sidebar-foreground/70 text-xs truncate">{user?.email}</p>
+              <Badge variant="outline" className="mt-2 text-xs">
+                {user?.role === "admin" ? "Administrador" : user?.role === "operator" ? "Operador" : "Visualizador"}
+              </Badge>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="w-4 h-4" />
+            {sidebarOpen && <span className="ml-2">Sair</span>}
+          </Button>
+        </div>
+
+        {/* Toggle Button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="mx-3 mb-6 p-2 hover:bg-sidebar-accent rounded-lg text-sidebar-foreground"
+        >
+          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 bg-card border-b border-border p-6 z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+              {description && <p className="text-muted-foreground">{description}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-accent/10">
+                Autenticado
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto">
+          <div className="p-6">{children}</div>
+        </div>
+      </main>
+    </div>
+  )
+}
