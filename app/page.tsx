@@ -11,7 +11,7 @@ export default function Page() {
   return (
     <ProtectedLayout
       title="Painel de Controle"
-      description="Bem-vindo de volta, Administrador"
+      description="Bem-vindo ao gerenciador de instancias GPON"
     // Sem botão de ação no header do dashboard
     >
       {/* 5. Todo o conteúdo antigo (KPIs, Charts, Logs) foi substituído por este bloco: */}
