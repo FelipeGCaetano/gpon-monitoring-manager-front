@@ -105,4 +105,35 @@ export const apiClient = {
   async getModules() {
     return fetchWithAuth("/modules")
   },
+
+  async getModuleById(id: string) {
+    return fetchWithAuth(`/modules/${id}`)
+  },
+
+  async createModule(module: any) {
+    return fetchWithAuth("/modules", {
+      method: "POST",
+      body: JSON.stringify(module),
+    })
+  },
+
+  async updateModule(id: string, module: any) {
+    return fetchWithAuth(`/modules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(module),
+    })
+  },
+
+  async deleteModule(id: string) {
+    return fetchWithAuth(`/modules/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async syncInstanceModules(id: string, modules: any) {
+    return fetchWithAuth(`/instances/${id}/sync-modules`, {
+      method: "POST",
+      body: JSON.stringify(modules),
+    })
+  },
 }

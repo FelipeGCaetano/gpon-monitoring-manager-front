@@ -57,7 +57,8 @@ export interface GponInstance {
 
 export interface Module {
   id: string
-  name: string
+  name: string,
+  version: string,
   instances: GponInstance[]
 }
 

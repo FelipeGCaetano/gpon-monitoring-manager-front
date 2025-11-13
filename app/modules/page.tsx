@@ -1,136 +1,31 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { CreateModuleModal } from "@/components/modals/modules/create-module-modal"; // Importa o novo modal
+import ModuleAssignmentModal from "@/components/modals/modules/module-assignment-modal";
+import { EditModuleModal } from "@/components/modals/modules/update-module-modal"; // 1. Importar o modal de EDIÇÃO
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { apiClient } from "@/lib/api-client";
+import { GponInstance, Module } from "@/lib/types";
 import {
-  LayoutDashboard,
-  Container,
-  Layers,
-  Users,
-  Settings,
   Activity,
-  Menu,
-  X,
-  Plus,
-  Trash2,
-  Download,
+  Container,
   Edit2,
-} from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ModuleAssignmentModal from "@/components/modals/module-assignment-modal"
-
-const modules = [
-  {
-    id: "gpon-core",
-    name: "GPON Core",
-    version: "3.2.1",
-    status: "deployed",
-    containers: 3,
-    license: "Empresa",
-    expiresIn: 245,
-    deployment: "Produção",
-    size: "128MB",
-  },
-  {
-    id: "gpon-acs",
-    name: "Módulo ACS",
-    version: "2.5.0",
-    status: "deployed",
-    containers: 2,
-    license: "Profissional",
-    expiresIn: 120,
-    deployment: "Produção",
-    size: "95MB",
-  },
-  {
-    id: "gpon-rupture",
-    name: "Detecção de Ruptura",
-    version: "1.8.3",
-    status: "deployed",
-    containers: 1,
-    license: "Profissional",
-    expiresIn: 340,
-    deployment: "Produção",
-    size: "64MB",
-  },
-  {
-    id: "gpon-test",
-    name: "Suíte de Testes",
-    version: "2.1.0",
-    status: "staging",
-    containers: 1,
-    license: "Versão Teste",
-    expiresIn: 30,
-    deployment: "Testes",
-    size: "156MB",
-  },
-  {
-    id: "gpon-analytics",
-    name: "Engine de Análise",
-    version: "1.3.5",
-    status: "available",
-    containers: 0,
-    license: "Empresa",
-    expiresIn: 180,
-    deployment: "Disponível",
-    size: "203MB",
-  },
-]
-
-const licenses = [
-  {
-    id: "ent-001",
-    module: "GPON Core",
-    type: "Empresa",
-    key: "GPON-ENT-2024-XXXXX",
-    issued: "2024-01-15",
-    expires: "2025-01-15",
-    status: "active",
-    seats: 10,
-  },
-  {
-    id: "pro-001",
-    module: "Módulo ACS",
-    type: "Profissional",
-    key: "GPON-PRO-2024-XXXXX",
-    issued: "2023-08-20",
-    expires: "2025-04-20",
-    status: "active",
-    seats: 5,
-  },
-  {
-    id: "pro-002",
-    module: "Detecção de Ruptura",
-    type: "Profissional",
-    key: "GPON-PRO-2024-XXXXX",
-    issued: "2023-10-10",
-    expires: "2025-10-10",
-    status: "active",
-    seats: 5,
-  },
-  {
-    id: "trial-001",
-    module: "Suíte de Testes",
-    type: "Versão Teste",
-    key: "GPON-TRIAL-2024-XXXXX",
-    issued: "2024-11-03",
-    expires: "2024-12-03",
-    status: "expiring",
-    seats: 1,
-  },
-]
-
-const containerModuleMap = [
-  { container: "docker-01", modules: ["gpon", "core"], id: "map-1" },
-  { container: "docker-02", modules: ["acs"], id: "map-2" },
-  { container: "docker-03", modules: ["rupture"], id: "map-3" },
-  { container: "docker-04", modules: ["gpon"], id: "map-4" },
-  { container: "docker-05", modules: ["test"], id: "map-5" },
-]
+  Layers,
+  LayoutDashboard,
+  Loader2,
+  Menu,
+  Plus,
+  Settings,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
@@ -143,58 +38,110 @@ const navigationItems = [
 
 export default function ModulesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [showAssignmentModal, setShowAssignmentModal] = useState(false)
-  const [selectedContainer, setSelectedContainer] = useState<any>(null)
 
-  const handleOpenAssignment = (containerId: string) => {
-    const container = containerModuleMap.find((m) => m.container === containerId)
-    setSelectedContainer({ id: containerId, name: containerId, modules: container?.modules || [] })
+  // --- Estados dos Modais ---
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false) // 2. Estado para o modal de EDIÇÃO
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null) // 2. Estado para o ID
+  const [selectedInstance, setSelectedInstance] = useState<GponInstance | null>(null) // Alterado de 'selectedContainer'
+
+  // --- Estados de Dados da API ---
+  const [modulesList, setModulesList] = useState<Module[]>([])
+  const [instancesList, setInstancesList] = useState<GponInstance[]>([])
+  const [isLoadingModules, setIsLoadingModules] = useState(true)
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true)
+
+  // --- Funções de Busca ---
+  const fetchModules = async () => {
+    setIsLoadingModules(true)
+    try {
+      const data = await apiClient.getModules()
+      setModulesList(data || [])
+    } catch (error) {
+      console.error("Falha ao buscar módulos:", error)
+      // TODO: Toast de erro
+    } finally {
+      setIsLoadingModules(false)
+    }
+  }
+
+  const fetchInstances = async () => {
+    setIsLoadingAssignments(true)
+    try {
+      const data = await apiClient.getInstances() // Instâncias incluem seus módulos
+      setInstancesList(data || [])
+    } catch (error) {
+      console.error("Falha ao buscar instâncias:", error)
+      // TODO: Toast de erro
+    } finally {
+      setIsLoadingAssignments(false)
+    }
+  }
+
+  // Carrega todos os dados no mount
+  useEffect(() => {
+    fetchModules()
+    fetchInstances()
+  }, [])
+
+  // --- Ações da API ---
+
+  const handleDeleteModule = async (moduleId: string) => {
+    if (!window.confirm("Tem certeza que deseja deletar este módulo?")) {
+      return
+    }
+    try {
+      await apiClient.deleteModule(moduleId)
+      await fetchModules() // Recarrega os módulos
+      // TODO: Toast de sucesso
+    } catch (error) {
+      console.error("Falha ao deletar módulo:", error)
+      // TODO: Toast de erro
+    }
+  }
+
+  // Abre o modal de atribuição
+  const handleOpenAssignment = (instance: GponInstance) => {
+    setSelectedInstance(instance) // Salva a instância selecionada
     setShowAssignmentModal(true)
   }
 
-  const handleSaveModuleAssignment = (moduleIds: string[]) => {
-    console.log("Modules saved for", selectedContainer.id, moduleIds)
+  // 3. Handler para abrir o modal de EDIÇÃO
+  const handleOpenEditModal = (module: Module) => {
+    setSelectedModuleId(module.id)
+    setIsEditModalOpen(true)
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "deployed":
-        return "bg-chart-4"
-      case "staging":
-        return "bg-chart-2"
-      case "available":
-        return "bg-muted"
-      default:
-        return "bg-secondary"
+  // Salva a atribuição (chamado pelo modal)
+  const handleSaveModuleAssignment = async (
+    instanceId: string,
+    moduleIds: string[]
+  ) => {
+    try {
+      await apiClient.syncInstanceModules(instanceId, { newModuleIds: moduleIds })
+      await fetchInstances() // Recarrega a lista de instâncias
+    } catch (error) {
+      console.error("Falha ao sincronizar módulos:", error)
+      // Lança o erro para o modal poder tratar (mostrar toast, etc)
+      throw error
     }
   }
 
-  const getLicenseStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-chart-4"
-      case "expiring":
-        return "bg-chart-3"
-      case "expired":
-        return "bg-destructive"
-      default:
-        return "bg-muted"
-    }
-  }
-
-  const getDaysUntilExpiry = (days: number) => {
-    if (days <= 30) return "text-destructive"
-    if (days <= 90) return "text-chart-3"
-    return "text-chart-4"
-  }
+  const LoadingRow = ({ cols }: { cols: number }) => (
+    <TableRow>
+      <TableCell colSpan={cols} className="h-24 text-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" />
+      </TableCell>
+    </TableRow>
+  )
 
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside
-        className={`bg-sidebar border-r border-sidebar-border transition-all duration-300 ${
-          sidebarOpen ? "w-64" : "w-20"
-        } flex flex-col`}
+        className={`bg-sidebar border-r border-sidebar-border transition-all duration-300 ${sidebarOpen ? "w-64" : "w-20"
+          } flex flex-col`}
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-8">
@@ -212,11 +159,10 @@ export default function ModulesPage() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                item.active
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${item.active
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
-              }`}
+                }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span>{item.label}</span>}
@@ -242,9 +188,9 @@ export default function ModulesPage() {
               <h1 className="text-3xl font-bold text-foreground">Módulos & Licenças</h1>
               <p className="text-muted-foreground">Gerenciar implantações de módulos e licenças</p>
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="w-4 h-4" />
-              Implantar Módulo
+              Adicionar Módulo
             </Button>
           </div>
         </div>
@@ -262,8 +208,8 @@ export default function ModulesPage() {
             <TabsContent value="modules" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Implantações de Módulos</CardTitle>
-                  <CardDescription>Todos os módulos implantados e disponíveis</CardDescription>
+                  <CardTitle>Módulos Disponíveis</CardTitle>
+                  <CardDescription>Todos os módulos cadastrados no sistema</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -271,24 +217,45 @@ export default function ModulesPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Nome do Módulo</TableHead>
-                          <TableHead>Instancias</TableHead>
+                          <TableHead>Versão do Módulo</TableHead>
+                          <TableHead>Instâncias Atribuídas</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {modules.map((module) => (
-                          <TableRow key={module.id}>
-                            <TableCell className="font-medium">{module.name}</TableCell>
-                            <TableCell className="text-sm">{module.containers}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
+                        {isLoadingModules ? (
+                          <LoadingRow cols={3} />
+                        ) : modulesList.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={3} className="h-24 text-center">
+                              Nenhum módulo encontrado.
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          modulesList.map((module) => (
+                            <TableRow key={module.id}>
+                              <TableCell className="font-medium">{module.name}</TableCell>
+                              <TableCell className="font-medium">{module.version}</TableCell>
+                              <TableCell className="text-sm">{module.instances.length}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {/* 4. Adicionar o botão de Editar Módulo */}
+                                  <Button size="sm" variant="ghost" onClick={() => handleOpenEditModal(module)}>
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => handleDeleteModule(module.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -300,45 +267,53 @@ export default function ModulesPage() {
             <TabsContent value="assignments" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Atribuições de Módulo de Container</CardTitle>
-                  <CardDescription>Gerenciar quais módulos são licenciados para cada container</CardDescription>
+                  <CardTitle>Atribuições de Módulos (por Instância)</CardTitle>
+                  <CardDescription>Gerenciar quais módulos estão licenciados para cada instância GPON</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Container</TableHead>
+                          <TableHead>Instância GPON</TableHead>
                           <TableHead>Módulos Atribuídos</TableHead>
-                          <TableHead>Status de Licença</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {containerModuleMap.map((map) => (
-                          <TableRow key={map.id}>
-                            <TableCell className="font-medium">{map.container}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1 flex-wrap">
-                                {map.modules.map((mod) => (
-                                  <Badge key={mod} variant="secondary" className="text-xs">
-                                    {mod}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="bg-chart-4/20 text-chart-4 border-0">
-                                Licenciado
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button size="sm" variant="ghost" onClick={() => handleOpenAssignment(map.container)}>
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
+                        {isLoadingAssignments ? (
+                          <LoadingRow cols={3} />
+                        ) : instancesList.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={3} className="h-24 text-center">
+                              Nenhuma instância encontrada.
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          instancesList.map((instance) => (
+                            <TableRow key={instance.id}>
+                              <TableCell className="font-medium">{instance.client.name}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1 flex-wrap">
+                                  {instance.modules.length > 0 ? (
+                                    instance.modules.map((mod) => (
+                                      <Badge key={mod.id} variant="secondary" className="text-xs">
+                                        {mod.name}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">Nenhum</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="ghost" onClick={() => handleOpenAssignment(instance)}>
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -349,15 +324,31 @@ export default function ModulesPage() {
         </div>
       </main>
 
-      {/* Module Assignment Modal */}
-      {selectedContainer && (
-        <ModuleAssignmentModal
-          container={selectedContainer}
-          isOpen={showAssignmentModal}
-          onClose={() => setShowAssignmentModal(false)}
-          onSave={handleSaveModuleAssignment}
-        />
-      )}
+      {/* --- Modais --- */}
+
+      {/* Modal de Atribuição (agora usa dados reais) */}
+      <ModuleAssignmentModal
+        instance={selectedInstance}
+        availableModules={modulesList} // Passa a lista de módulos da API
+        isOpen={showAssignmentModal}
+        onClose={() => setShowAssignmentModal(false)}
+        onSave={handleSaveModuleAssignment} // Passa a função de salvar
+      />
+
+      {/* Modal de Criação */}
+      <CreateModuleModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onModuleCreated={fetchModules} // Recarrega os módulos após criar
+      />
+
+      {/* 5. Renderizar o novo modal de EDIÇÃO */}
+      <EditModuleModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        moduleId={selectedModuleId}
+        onModuleUpdated={fetchModules} // Recarrega os módulos após editar
+      />
     </div>
   )
 }
