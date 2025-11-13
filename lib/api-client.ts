@@ -102,6 +102,30 @@ export const apiClient = {
     return fetchWithAuth("/instances")
   },
 
+  async getInstanceById(id: string) {
+    return fetchWithAuth(`/instances/${id}`)
+  },
+
+  async createInstance(instance: any) {
+    return fetchWithAuth("/instances", {
+      method: "POST",
+      body: JSON.stringify(instance),
+    })
+  },
+
+  async updateInstance(id: string, instance: any) {
+    return fetchWithAuth(`/instances/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(instance),
+    })
+  },
+
+  async deleteInstance(id: string) {
+    return fetchWithAuth(`/instances/${id}`, {
+      method: "DELETE",
+    })
+  },
+
   async getModules() {
     return fetchWithAuth("/modules")
   },
@@ -185,5 +209,5 @@ export const apiClient = {
 
   async getImageTemplates() {
     return fetchWithAuth("/containers/images")
-  },
+  }
 }

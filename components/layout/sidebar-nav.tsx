@@ -1,15 +1,16 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+import { Component, Container, Layers, LayoutDashboard, Settings, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Container, Layers, Users, Settings } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
   { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
-  { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
+  { icon: Users, label: "Clientes", href: "/clients", active: true },
   { icon: Users, label: "Usuários", href: "/users" },
   { icon: Settings, label: "Configuração", href: "/settings" },
 ]

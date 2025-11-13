@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/use-theme"
 import { apiClient } from "@/lib/api-client"; // Importa o API Client
 import {
   Activity,
+  Component,
   Container,
   Layers,
   LayoutDashboard,
@@ -38,9 +39,10 @@ const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
   { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
-  { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
+  { icon: Users, label: "Clientes", href: "/clients", active: true },
   { icon: Users, label: "Usuários", href: "/users" },
-  { icon: Settings, label: "Configuração", href: "/settings", active: true },
+  { icon: Settings, label: "Configuração", href: "/settings" },
 ]
 
 // Helper para formatar data

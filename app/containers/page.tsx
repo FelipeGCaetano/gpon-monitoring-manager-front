@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client"; // Importado o API Client
 import { Container as ContainerType } from "@/lib/types";
 import {
   Activity,
+  Component,
   Container,
   Eye,
   Layers,
@@ -30,9 +31,10 @@ import { useEffect, useState } from "react";
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
-  { icon: Container, label: "Containers", href: "/containers", active: true },
+  { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
-  { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
+  { icon: Users, label: "Clientes", href: "/clients", active: true },
   { icon: Users, label: "Usuários", href: "/users" },
   { icon: Settings, label: "Configuração", href: "/settings" },
 ]

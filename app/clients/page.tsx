@@ -1,21 +1,23 @@
 "use client"
 
-import { CreateClientModal } from "@/components/modals/client/create-client-modal"; // 1. Importar o novo modal
-import { EditClientModal } from "@/components/modals/client/update-client-modal"; // 1. Importar o modal de EDIÇÃO
-import { CreateInstanceModal } from "@/components/modals/create-instance-modal";
-import { GponInstanceDetailsModal } from "@/components/modals/gpon-instance-details-modal";
-import { Badge } from "@/components/ui/badge";
+import { CreateClientModal } from "@/components/modals/client/create-client-modal";
+import { EditClientModal } from "@/components/modals/client/update-client-modal";
+// Modais de Instância removidos
+// import { CreateInstanceModal } from "@/components/modals/create-instance-modal";
+// import { GponInstanceDetailsModal } from "@/components/modals/gpon-instance-details-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs removidas
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
 import { Client } from "@/lib/types"; // Importando o tipo 'Client' de lib/types
 import {
   Activity,
+  Component,
   Container,
   Edit2,
-  Eye,
+  // Eye, // Removido (era para instâncias)
   Layers,
   LayoutDashboard,
   Loader2,
@@ -29,42 +31,22 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react"; // Importado useEffect
 
-// Esta interface permanece a MESMA, pois vem de apiClient.getAllInstances()
-interface Instance {
-  id: string
-  name: string
-  type: "PRODUCTION" | "BACKUP" | "TESTING" | "MONITORING"
-  status: "RUNNING" | "PAUSED"
-  createdAt: string
-  client: {
-    name: string
-  }
-}
-
-interface Module {
-  id: string
-  name: string
-}
-// --- FIM DOS TIPOS ---
+// Interfaces de Instância e Módulo removidas
+// interface Instance { ... }
+// interface Module { ... }
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
   { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
   { icon: Users, label: "Clientes", href: "/clients", active: true },
   { icon: Users, label: "Usuários", href: "/users" },
   { icon: Settings, label: "Configuração", href: "/settings" },
 ]
 
-// Helper para formatar data
-const formatDate = (dateString: Date | string) => {
-  if (!dateString) return "N/A"
-  return new Date(dateString).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  })
-}
+// Helper para formatar data (Removido, não é usado nesta tabela)
+// const formatDate = (dateString: Date | string) => { ... }
 
 // --- Helper para formatar telefone (copiado de users/page.tsx) ---
 const formatPhone = (value: string) => {
@@ -86,24 +68,16 @@ const formatPhone = (value: string) => {
 export default function ClientsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // --- Estados dos Modais ---
-  const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null)
-  const [instanceDetailsOpen, setInstanceDetailsOpen] = useState(false)
-  const [createInstanceOpen, setCreateInstanceOpen] = useState(false)
-  const [isCreateClientOpen, setIsCreateClientOpen] = useState(false) // 2. Estado para o novo modal
-  const [isEditClientOpen, setIsEditClientOpen] = useState(false) // 2. Estado para o modal de EDIÇÃO
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null) // 2. Estado para guardar o cliente a ser editado
+  // --- Estados dos Modais (Apenas Cliente) ---
+  const [isCreateClientOpen, setIsCreateClientOpen] = useState(false)
+  const [isEditClientOpen, setIsEditClientOpen] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
 
-  // --- Estados de Dados da API ---
+  // --- Estados de Dados da API (Apenas Cliente) ---
   const [clients, setClients] = useState<Client[]>([])
-  const [instances, setInstances] = useState<Instance[]>([])
-  const [modules, setModules] = useState<Module[]>([]) // Para o modal
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingClients, setIsLoadingClients] = useState(true) // Loading específico para clientes
-  const [isLoadingInstances, setIsLoadingInstances] = useState(true) // Loading específico para instâncias
-  // -----------------------------
+  const [isLoadingClients, setIsLoadingClients] = useState(true)
 
-  // --- 4. Funções de busca de dados refatoradas ---
+  // --- Funções de busca de dados (Apenas Cliente) ---
   const fetchClients = async () => {
     setIsLoadingClients(true)
     try {
@@ -116,81 +90,18 @@ export default function ClientsPage() {
     }
   }
 
-  const fetchInstancesAndModules = async () => {
-    setIsLoadingInstances(true)
-    try {
-      const [instancesData, modulesData] = await Promise.all([
-        apiClient.getInstances(),
-        apiClient.getModules(),
-      ])
-      setInstances(instancesData || [])
-      setModules(modulesData || [])
-    } catch (error) {
-      console.error("Falha ao buscar instâncias/módulos:", error)
-    } finally {
-      setIsLoadingInstances(false)
-    }
-  }
-
   // Carrega todos os dados da página
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true) // Loading geral
-      await Promise.all([fetchClients(), fetchInstancesAndModules()])
-      setIsLoading(false)
-    }
-    fetchData()
+    fetchClients()
   }, [])
 
-  // (Funções de cor e tipo permanecem as mesmas)
-  // ... getStatusColor, getTypeColor, getTypeName ...
-  // Funções de Cores (Ainda são usadas na Aba "Instâncias")
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "ONLINE": // Status do Cliente (não mais usado na tabela, mas mantido)
-      case "RUNNING": // Status da Instância
-        return "bg-chart-4" // Verde
-      case "OFFLINE": // Status do Cliente (não mais usado na tabela, mas mantido)
-        return "bg-destructive" // Vermelho
-      case "PAUSED": // Status da Instância
-        return "bg-chart-2" // Laranja
-      default:
-        return "bg-muted"
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "PRODUCTION":
-        return "bg-chart-4"
-      case "BACKUP":
-        return "bg-chart-2"
-      case "TESTING":
-        return "bg-chart-3"
-      case "MONITORING":
-        return "bg-accent"
-      default:
-        return "bg-secondary"
-    }
-  }
-
-  const getTypeName = (type: string) => {
-    switch (type) {
-      case "PRODUCTION":
-        return "Produção"
-      case "BACKUP":
-        return "Backup"
-      case "TESTING":
-        return "Testes"
-      case "MONITORING":
-        return "Monitoramento"
-      default:
-        return type
-    }
-  }
+  // Funções de cor/tipo de Instância removidas
+  // const getStatusColor = (status: string) => { ... }
+  // const getTypeColor = (type: string) => { ... }
+  // const getTypeName = (type: string) => { ... }
 
 
-  // Ações da API
+  // Ações da API (Apenas Cliente)
   const handleDeleteClient = async (clientId: string) => {
     if (!window.confirm("Tem certeza que deseja deletar este cliente? Isso NÃO deletará as instâncias associadas.")) {
       return
@@ -205,22 +116,14 @@ export default function ClientsPage() {
     }
   }
 
-  // Placeholder para Ações futuras
   const handleEditClient = (client: Client) => {
-    // 3. Implementar a função
     setSelectedClient(client)
     setIsEditClientOpen(true)
   }
 
-  const handleEditInstance = (instance: Instance) => {
-    console.log("TODO: Abrir modal de edição para a instância", instance.id)
-  }
-
-  // Ação do Modal (como no original)
-  const handleViewInstanceDetails = (instance: Instance) => {
-    setSelectedInstance(instance)
-    setInstanceDetailsOpen(true)
-  }
+  // Handlers de Instância removidos
+  // const handleEditInstance = (instance: Instance) => { ... }
+  // const handleViewInstanceDetails = (instance: Instance) => { ... }
 
   const LoadingRow = ({ cols }: { cols: number }) => (
     <TableRow>
@@ -254,8 +157,8 @@ export default function ClientsPage() {
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${item.active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent"
                 }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -275,219 +178,99 @@ export default function ClientsPage() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        {/* Header */}
+        {/* Header (Atualizado) */}
         <div className="sticky top-0 bg-card border-b border-border p-6 z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Clientes & Instâncias</h1>
-              <p className="text-muted-foreground">Gerenciar clientes conectados e suas instâncias GPON</p>
+              <h1 className="text-3xl font-bold text-foreground">Clientes</h1>
+              <p className="text-muted-foreground">Gerenciar clientes do sistema</p>
             </div>
-            {/* O botão principal continua sendo Criar Instância */}
-            <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)}>
+            <Button className="gap-2" onClick={() => setIsCreateClientOpen(true)}>
               <Plus className="w-4 h-4" />
-              Criar Instância
+              Adicionar Cliente
             </Button>
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content (Tabs Removidas) */}
         <div className="p-6 space-y-6">
-          {/* Tabs */}
-          <Tabs defaultValue="clients" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="clients">Clientes</TabsTrigger>
-              <TabsTrigger value="instances">Instâncias</TabsTrigger>
-            </TabsList>
-
-            {/* Clients Tab (Atualizada) */}
-            <TabsContent value="clients" className="space-y-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Clientes Conectados</CardTitle>
-                    <CardDescription>Gerenciar e monitorar todas as conexões de clientes</CardDescription>
-                  </div>
-                  {/* 3. Botão para abrir o novo modal */}
-                  <Button variant="outline" className="gap-2" onClick={() => setIsCreateClientOpen(true)}>
-                    <Plus className="w-4 h-4" />
-                    Adicionar Cliente
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nome do Cliente</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Telefone</TableHead>
-                          <TableHead>Instâncias</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
+          <Card>
+            <CardHeader>
+              <CardTitle>Clientes Conectados</CardTitle>
+              <CardDescription>Gerenciar e monitorar todas as conexões de clientes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome do Cliente</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Instâncias</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoadingClients ? (
+                      <LoadingRow cols={5} />
+                    ) : clients.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                          Nenhum cliente encontrado.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      clients.map((client) => (
+                        <TableRow key={client.id}>
+                          <TableCell className="font-medium">{client.name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{client.email}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatPhone(client.phone)}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            {client.gponInstances.length}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => handleEditClient(client)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteClient(client.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {isLoadingClients ? (
-                          <LoadingRow cols={5} />
-                        ) : clients.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                              Nenhum cliente encontrado.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          clients.map((client) => (
-                            <TableRow key={client.id}>
-                              <TableCell className="font-medium">{client.name}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{client.email}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {formatPhone(client.phone)}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {client.gponInstances.length}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => handleEditClient(client)}>
-                                    <Edit2 className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive"
-                                    onClick={() => handleDeleteClient(client.id)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Instances Tab (Permanece a mesma) */}
-            <TabsContent value="instances" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Instâncias de Clientes</CardTitle>
-                  <CardDescription>Monitorar todas as instâncias em execução nos clientes</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nome da Instância</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Criado em</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {isLoadingInstances ? (
-                          <LoadingRow cols={6} />
-                        ) : instances.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center">
-                              Nenhuma instância encontrada.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          instances.map((instance) => (
-                            <TableRow key={instance.id}>
-                              <TableCell className="font-medium">{instance.name}</TableCell>
-                              <TableCell className="text-sm">{instance.client.name}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={`${getTypeColor(instance.type)} text-white border-0`}>
-                                  {getTypeName(instance.type)}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant="outline"
-                                  className={`${getStatusColor(instance.status)} text-white border-0`}
-                                >
-                                  {instance.status === "RUNNING" ? "Em Execução" : "Pausado"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {formatDate(instance.createdAt)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => handleViewInstanceDetails(instance)}>
-                                    <Eye className="w-4 h-4" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => handleEditInstance(instance)}>
-                                    <Edit2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
 
-      {/* Modais */}
-      {selectedInstance && (
-        <GponInstanceDetailsModal
-          instance={selectedInstance}
-          open={instanceDetailsOpen}
-          onOpenChange={setInstanceDetailsOpen}
-        />
-      )}
-
-      <CreateInstanceModal
-        open={createInstanceOpen}
-        onOpenChange={setCreateInstanceOpen}
-        clients={clients} // Passando clientes reais
-        modules={modules} // Passando módulos reais
-        onInstanceCreated={async () => {
-          // Função para recarregar as instâncias após a criação
-          setIsLoadingInstances(true)
-          try {
-            const instancesData = await apiClient.getInstances()
-            setInstances(instancesData || [])
-          } catch (error) {
-            console.error("Erro ao recarregar instâncias", error)
-          } finally {
-            setIsLoadingInstances(false)
-          }
-        }}
-      />
-
-      {/* 5. Renderizar o novo modal */}
+      {/* Modais (Apenas Cliente) */}
       <CreateClientModal
         open={isCreateClientOpen}
         onOpenChange={setIsCreateClientOpen}
         onClientCreated={async () => {
-          // Recarrega a lista de clientes
           await fetchClients()
         }}
       />
 
-      {/* 5. Renderizar o novo modal de EDIÇÃO */}
       <EditClientModal
         open={isEditClientOpen}
         onOpenChange={setIsEditClientOpen}
         client={selectedClient}
         onClientUpdated={async () => {
-          // Recarrega a lista de clientes
           await fetchClients()
         }}
       />

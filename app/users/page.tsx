@@ -16,6 +16,7 @@ import { apiClient } from "@/lib/api-client"; // Importa o API Client
 import type { Role, User } from "@/lib/types"; // Importa os tipos reais
 import {
   Activity,
+  Component,
   Container,
   Edit2,
   Layers,
@@ -23,12 +24,11 @@ import {
   Loader2,
   Menu,
   Plus,
-  Search,
   Settings,
   Shield,
   Trash2,
   Users,
-  X,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -47,8 +47,9 @@ const navigationItems = [
   { icon: LayoutDashboard, label: "Painel", href: "/" },
   { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
-  { icon: Users, label: "Clientes", href: "/clients" },
-  { icon: Users, label: "Usuários", href: "/users", active: true },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
+  { icon: Users, label: "Clientes", href: "/clients", active: true },
+  { icon: Users, label: "Usuários", href: "/users" },
   { icon: Settings, label: "Configuração", href: "/settings" },
 ]
 
@@ -392,22 +393,7 @@ export default function UsersPage() {
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Search Bar */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome ou email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg bg-secondary border border-border text-foreground"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
+          
           {/* Users Table */}
           <Card>
             <CardHeader>

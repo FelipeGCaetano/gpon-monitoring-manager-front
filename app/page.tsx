@@ -1,19 +1,19 @@
 "use client"
-import { LayoutDashboard, Container, Layers, Users, Settings, Activity, AlertCircle, Server } from "lucide-react"
+import { ProtectedLayout } from "@/components/layout/protected-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Activity, AlertCircle, Component, Container, Layers, LayoutDashboard, Server, Settings, Users } from "lucide-react"
 import {
-  LineChart,
+  CartesianGrid,
+  Cell,
   Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts"
-import { ProtectedLayout } from "@/components/layout/protected-layout"
 
 const activityData = [
   { time: "00:00", containers: 12, modules: 45, jobs: 8 },
@@ -42,10 +42,12 @@ const recentLogs = [
 ]
 
 const navigationItems = [
-  { icon: LayoutDashboard, label: "Painel", href: "/", active: true },
+  { icon: LayoutDashboard, label: "Painel", href: "/" },
   { icon: Container, label: "Containers", href: "/containers" },
   { icon: Layers, label: "Módulos", href: "/modules" },
-  { icon: Users, label: "Clientes", href: "/clients" },
+  { icon: Component, label: "Instâncias", href: "/instances" }, // 2. Adicionar novo item
+  { icon: Users, label: "Clientes", href: "/clients", active: true },
+  { icon: Users, label: "Usuários", href: "/users" },
   { icon: Settings, label: "Configuração", href: "/settings" },
 ]
 
