@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Plus, Save, Trash2 } from "lucide-react"; // 1. Adicionado Plus e Trash2
 import { useEffect, useState } from "react"
 
-// Tipos
+// 2. Interface atualizada
 interface GlobalEnv {
-  id: string
+  id: string // ID do banco de dados ou crypto.randomUUID() para novos
   key: string
   value: string
+  isNew?: boolean // Flag para identificar novas variáveis
 }
 
 interface GeneralSettings {
@@ -57,7 +58,8 @@ export default function SettingsPage() {
         adminEmail: settingsData.adminEmail,
         updatedAt: formatDate(settingsData.updatedAt),
       })
-      setGlobalEnvs(settingsData.globalEnv || [])
+      // 3. Adiciona a flag isNew: false para variáveis existentes
+      setGlobalEnvs(settingsData.globalEnv.map((env: any) => ({ ...env, isNew: false })) || [])
     } catch (error) {
       console.error("Falha ao carregar configurações:", error)
     } finally {
@@ -78,11 +80,28 @@ export default function SettingsPage() {
     }))
   }
 
-  const handleGlobalVarChange = (index: number, value: string) => {
+  // 4. Handler de Variáveis Globais (Atualizado para usar ID e 'key'/'value')
+  const handleGlobalVarChange = (id: string, field: "key" | "value", value: string) => {
     setGlobalEnvs((prevEnvs) =>
-      prevEnvs.map((env, i) => (i === index ? { ...env, value } : env))
+      prevEnvs.map((env) =>
+        env.id === id ? { ...env, [field]: value } : env
+      )
     )
   }
+
+  // 5. Nova função para Adicionar Env
+  const handleAddNewGlobalVar = () => {
+    setGlobalEnvs((prevEnvs) => [
+      ...prevEnvs,
+      { id: crypto.randomUUID(), key: "", value: "", isNew: true },
+    ])
+  }
+
+  // 6. Nova função para Deletar Env
+  const handleDeleteGlobalVar = (id: string) => {
+    setGlobalEnvs((prevEnvs) => prevEnvs.filter((env) => env.id !== id))
+  }
+
 
   const handleSaveSettings = async () => {
     if (!settingsId) {
@@ -92,17 +111,20 @@ export default function SettingsPage() {
 
     setIsSubmitting(true)
     try {
+      // 7. Payload atualizado para filtrar novas chaves vazias
       const payload = {
         systemName: generalSettings.systemName,
         adminEmail: generalSettings.adminEmail,
-        globalEnvs: globalEnvs.map((env) => ({
-          key: env.key,
-          value: env.value,
-        })),
+        globalEnvs: globalEnvs
+          .filter(env => env.key.trim() !== "") // Garante que a chave não está vazia
+          .map((env) => ({ // Envia apenas o que a API espera
+            key: env.key,
+            value: env.value,
+          })),
       }
 
       await apiClient.updateSettings(settingsId, payload)
-      await fetchSettings()
+      await fetchSettings() // Recarrega os dados para sincronizar IDs
     } catch (error) {
       console.error("Falha ao salvar configurações:", error)
     } finally {
@@ -196,7 +218,7 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Aba: Variáveis Globais */}
+          {/* Aba: Variáveis Globais (Atualizada com CRUD) */}
           <TabsContent value="variables" className="space-y-4">
             <Card>
               <CardHeader>
@@ -210,18 +232,63 @@ export default function SettingsPage() {
                   </div>
                 ) : (
                   <>
-                    {globalEnvs.map((env, index) => (
-                      <div key={env.id} className="space-y-2 p-4 rounded-lg bg-secondary">
-                        <label className="text-sm font-medium text-foreground">{env.key}</label>
-                        <input
-                          type="text"
-                          value={env.value}
-                          onChange={(e) => handleGlobalVarChange(index, e.target.value)}
-                          disabled={isSubmitting}
-                          className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-50"
-                        />
-                      </div>
-                    ))}
+                    <div className="space-y-3">
+                      {globalEnvs.map((env) => (
+                        <div key={env.id} className="flex items-end gap-2 p-4 rounded-lg bg-secondary">
+                          {/* Campo Chave */}
+                          <div className="flex-1 space-y-2">
+                            <label className="text-sm font-medium text-foreground">Chave</label>
+                            <input
+                              type="text"
+                              placeholder="EXEMPLO_VAR"
+                              value={env.key}
+                              // Só permite editar a chave se for um item novo
+                              onChange={(e) => handleGlobalVarChange(env.id, 'key', e.target.value)}
+                              disabled={isSubmitting || !env.isNew}
+                              className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-70 disabled:bg-secondary"
+                            />
+                          </div>
+                          {/* Campo Valor */}
+                          <div className="flex-1 space-y-2">
+                            <label className="text-sm font-medium text-foreground">Valor</label>
+                            <input
+                              type="text"
+                              placeholder="Valor da variável"
+                              value={env.value}
+                              onChange={(e) => handleGlobalVarChange(env.id, 'value', e.target.value)}
+                              disabled={isSubmitting}
+                              className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-50"
+                            />
+                          </div>
+                          {/* Botão Deletar */}
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDeleteGlobalVar(env.id)}
+                            disabled={isSubmitting}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Botão Adicionar */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={handleAddNewGlobalVar}
+                      disabled={isSubmitting}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar Variável
+                    </Button>
+
+                    <hr className="border-border" />
+
+                    {/* Botão Salvar */}
                     <Button
                       className="gap-2 w-full"
                       onClick={handleSaveSettings}

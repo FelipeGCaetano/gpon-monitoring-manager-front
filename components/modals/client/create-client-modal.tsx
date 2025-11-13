@@ -11,6 +11,8 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
+
 
 // Copiando a função de máscara para este componente
 const formatPhone = (value: string) => {
@@ -88,12 +90,11 @@ export function CreateClientModal({
                 phone: formData.phone, // Envia apenas os números
             }
             await apiClient.createClient(payload)
-            // TODO: Adicionar toast de sucesso
+            toast.success("Cliente criado com sucesso!")
             onClientCreated() // Chama o callback para atualizar a página
             onOpenChange(false) // Fecha o modal
         } catch (error) {
-            console.error("Falha ao criar cliente:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao criar cliente.")
         } finally {
             setIsSubmitting(false)
         }

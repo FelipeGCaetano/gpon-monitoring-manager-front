@@ -14,6 +14,7 @@ import { apiClient } from "@/lib/api-client"
 import { Client, Container as ContainerType, GponInstance as Instance, Module } from "@/lib/types"; // Importando tipos
 import { Container, Loader2 } from "lucide-react"; // Importando ícones
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 interface EditInstanceModalProps {
     open: boolean
@@ -59,8 +60,7 @@ export function EditInstanceModal({
                         })
                     }
                 } catch (error) {
-                    console.error("Falha ao buscar dados da instância:", error)
-                    // TODO: Adicionar toast de erro
+                    toast.error("Falha ao carregar dados da instância.")
                 } finally {
                     setIsLoading(false)
                 }
@@ -98,13 +98,11 @@ export function EditInstanceModal({
             }
 
             await apiClient.updateInstance(instanceId, payload)
-
-            // TODO: Adicionar toast de sucesso
+            toast.success("Instância atualizada com sucesso!")
             onInstanceUpdated() // Chama o callback para atualizar a página
             onOpenChange(false) // Fecha o modal
         } catch (error) {
-            console.error("Falha ao atualizar instância:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao atualizar instância.")
         } finally {
             setIsSubmitting(false)
         }

@@ -16,6 +16,7 @@ import { Loader2, Lock, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 // Importar os tipos do seu arquivo lib/types
 import type { EnvDefinition, GponInstance, ImageTemplate } from "@/lib/types"
+import { toast } from "sonner"
 
 // --- Tipos para os campos do formulário (Atualizados com isGlobal) ---
 interface FormEnvVar {
@@ -106,8 +107,7 @@ export function CreateContainerModal({
                     setGponInstances(instancesData || [])
                     setGlobalEnvs(settingsData?.globalEnv || []) // <-- Salva as envs globais
                 } catch (error) {
-                    console.error("Falha ao buscar dados para o modal:", error)
-                    // TODO: Toast de erro
+                    toast.error("Falha ao carregar dados.")
                 } finally {
                     setIsLoadingData(false)
                 }
@@ -234,12 +234,11 @@ export function CreateContainerModal({
             }
 
             await apiClient.createContainer(payload)
-            // TODO: Adicionar toast de sucesso
+            toast.success("Container criado com sucesso!")
             onContainerCreated()
             onOpenChange(false)
         } catch (error) {
-            console.error("Falha ao criar container:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao criar container.")
         } finally {
             setIsSubmitting(false)
         }

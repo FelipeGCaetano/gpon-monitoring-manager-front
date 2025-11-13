@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client"
 import { Container } from "@/lib/types"
 import { HardDrive, KeyRound, Loader2, Network, RefreshCw, X } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 interface ContainerDetailsModalProps {
   container: Container // Recebe o container básico da lista
@@ -40,8 +41,7 @@ export default function ContainerDetailsModal({ container, isOpen, onClose }: Co
           const data = await apiClient.getContainerById(container.id)
           setFullContainer(data)
         } catch (error) {
-          console.error("Falha ao buscar detalhes do container:", error)
-          // TODO: Adicionar toast de erro
+          toast.error("Falha ao buscar detalhes do container.")
         } finally {
           setIsLoading(false)
         }

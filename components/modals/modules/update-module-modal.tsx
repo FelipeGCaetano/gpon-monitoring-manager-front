@@ -11,6 +11,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // --- Função de Máscara de Versão (Reutilizada) ---
 const formatVersion = (value: string) => {
@@ -69,8 +70,7 @@ export function EditModuleModal({
                         })
                     }
                 } catch (error) {
-                    console.error("Falha ao buscar dados do módulo:", error)
-                    // TODO: Adicionar toast de erro
+                    toast.error("Falha ao carregar dados do módulo.")
                 } finally {
                     setIsLoading(false)
                 }
@@ -92,13 +92,11 @@ export function EditModuleModal({
 
             // Chama a rota de UPDATE
             await apiClient.updateModule(moduleId, payload)
-
-            // TODO: Adicionar toast de sucesso
+            toast.success("Módulo atualizado com sucesso!")
             onModuleUpdated() // Chama o callback para atualizar a página
             onOpenChange(false) // Fecha o modal
         } catch (error) {
-            console.error("Falha ao atualizar módulo:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao atualizar módulo.")
         } finally {
             setIsSubmitting(false)
         }

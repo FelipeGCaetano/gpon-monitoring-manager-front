@@ -15,10 +15,12 @@ import { apiClient } from "@/lib/api-client";
 import { Client, Module } from "@/lib/types";
 import { Container, Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   CreateInstanceContainerModal,
   InstanceContainerData, // Importa o tipo do payload do sub-modal
 } from "./create-instance-container-modal"; // Importa o novo sub-modal
+
 
 interface CreateInstanceModalProps {
   open: boolean
@@ -96,12 +98,11 @@ export function CreateInstanceModal({
       }
 
       await apiClient.createInstance(payload)
-      // TODO: Adicionar toast de sucesso
+      toast.success("Instância criada com sucesso!")
       onInstanceCreated() // Recarrega a página de instâncias
       handleCloseModal(false) // Fecha e reseta o modal
     } catch (error) {
-      console.error("Falha ao criar instância:", error)
-      // TODO: Adicionar toast de erro
+      toast.error("Falha ao criar instância.")
     } finally {
       setIsSubmitting(false)
     }

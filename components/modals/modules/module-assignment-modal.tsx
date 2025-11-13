@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { GponInstance, Module } from "@/lib/types"
 import { Loader2, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 interface ModuleAssignmentModalProps {
   instance: GponInstance | null // Prop alterada de 'container' para 'instance'
@@ -47,10 +48,9 @@ export default function ModuleAssignmentModal({
       // Chama a função onSave (que chamará o apiClient)
       await onSave(instance.id, selectedModules)
       onClose()
-      // TODO: Toast de sucesso
+      toast.success("Módulos atribuídos com sucesso!")
     } catch (error) {
-      console.error("Failed to update modules:", error)
-      // TODO: Toast de erro
+      toast.error("Falha ao atribuir módulos.")
     } finally {
       setIsSubmitting(false)
     }

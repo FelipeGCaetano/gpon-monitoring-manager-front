@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client"
 import { Client } from "@/lib/types"
 import { Edit2, Loader2, Plus, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // --- Helper para formatar telefone ---
 const formatPhone = (value: string) => {
@@ -63,10 +64,9 @@ export default function ClientsPage() {
     try {
       await apiClient.deleteClient(clientId)
       setClients((prev) => prev.filter((c) => c.id !== clientId))
-      // TODO: Toast de sucesso
+      toast.success("Cliente deletado com sucesso!")
     } catch (error) {
-      console.error("Falha ao deletar cliente:", error)
-      // TODO: Toast de erro
+      toast.error("Falha ao deletar cliente.")
     }
   }
 

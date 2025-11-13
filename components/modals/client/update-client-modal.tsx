@@ -1,17 +1,18 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog"
-import { apiClient } from "@/lib/api-client"
+} from "@/components/ui/dialog";
+import { apiClient } from "@/lib/api-client";
 import { Client } from "@/lib/types"; // Importa o tipo
-import { Loader2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 // Copiando a função de máscara para este componente
 const formatPhone = (value: string) => {
@@ -97,12 +98,11 @@ export function EditClientModal({
             }
             // Chama a rota de UPDATE
             await apiClient.updateClient(client.id, payload)
-            // TODO: Adicionar toast de sucesso
+            toast.success("Cliente atualizado com sucesso!")
             onClientUpdated() // Chama o callback para atualizar a página
             onOpenChange(false) // Fecha o modal
         } catch (error) {
-            console.error("Falha ao atualizar cliente:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao atualizar cliente.")
         } finally {
             setIsSubmitting(false)
         }

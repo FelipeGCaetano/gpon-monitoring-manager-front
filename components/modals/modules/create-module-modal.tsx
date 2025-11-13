@@ -11,6 +11,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // --- Nova Função de Máscara de Versão ---
 const formatVersion = (value: string) => {
@@ -77,14 +78,11 @@ export function CreateModuleModal({
             }
 
             await apiClient.createModule(payload)
-            // ----------------------------
-
-            // TODO: Adicionar toast de sucesso
+            toast.success("Módulo criado com sucesso!")
             onModuleCreated() // Chama o callback para atualizar a página
             onOpenChange(false) // Fecha o modal
         } catch (error) {
-            console.error("Falha ao criar módulo:", error)
-            // TODO: Adicionar toast de erro
+            toast.error("Falha ao criar módulo.")
         } finally {
             setIsSubmitting(false)
         }

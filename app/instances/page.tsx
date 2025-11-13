@@ -23,8 +23,10 @@ import {
   Layers,
   Loader2,
   Plus,
+  Trash2
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // Helper para formatar data
 const formatDate = (dateString: Date | string) => {
@@ -50,6 +52,7 @@ export default function InstancesPage() {
   const [modules, setModules] = useState<Module[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [groupedInstances, setGroupedInstances] = useState<Record<string, Instance[]>>({})
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // 2. Adicionado estado de submitting
 
   // --- Funções de busca de dados ---
   const fetchPageData = async () => {
@@ -100,6 +103,23 @@ export default function InstancesPage() {
   const handleViewInstanceDetails = (instance: Instance) => {
     setSelectedInstance(instance)
     setInstanceDetailsOpen(true)
+  }
+
+  const handleDeleteInstance = async (instanceId: string) => {
+    if (!window.confirm("Tem certeza que deseja deletar esta instância? Esta ação é irreversível e deletará todos os containers associados.")) {
+      return
+    }
+
+    setIsSubmitting(instanceId) // Inicia o loading no botão específico
+    try {
+      await apiClient.deleteInstance(instanceId)
+      toast.success("Instância deletada com sucesso!")
+      await fetchPageData() // Recarrega a lista de todas as instâncias
+    } catch (error) {
+      toast.error("Falha ao deletar instância.")
+    } finally {
+      setIsSubmitting(null) // Para o loading
+    }
   }
 
   const LoadingRow = ({ cols }: { cols: number }) => (
@@ -182,6 +202,19 @@ export default function InstancesPage() {
                             onClick={() => handleEditInstance(instance)}
                           >
                             <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteInstance(instance.id)}
+                            disabled={!!isSubmitting}
+                          >
+                            {isSubmitting === instance.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </Button>
                         </div>
                       </div>
