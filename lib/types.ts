@@ -1,5 +1,5 @@
 // Type definitions based on Prisma schema
-export type ContainerStatus = "RUNNING" | "STOPPED" | "CREATED"
+export type ContainerStatus = "RUNNING" | "STOPPED" | "CREATED" | "PAUSED"
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
 export interface User {
@@ -120,7 +120,7 @@ export interface Container {
   imageTemplateId: string
   imageTemplate: ImageTemplate
   lastRestart?: Date
-  status?: ContainerStatus
+  status: ContainerStatus
   portMapping: PortMapping[]
   envVariables: ContainerEnv[]
   volumeMapping: VolumeMapping[]

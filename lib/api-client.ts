@@ -136,4 +136,54 @@ export const apiClient = {
       body: JSON.stringify(modules),
     })
   },
+
+  async getContainers() {
+    return fetchWithAuth("/containers")
+  },
+
+  async getContainerById(id: string) {
+    return fetchWithAuth(`/containers/${id}`)
+  },
+
+  async createContainer(container: any) {
+    return fetchWithAuth("/containers", {
+      method: "POST",
+      body: JSON.stringify(container),
+    })
+  },
+
+  async updateContainer(id: string, container: any) {
+    return fetchWithAuth(`/containers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(container),
+    })
+  },
+
+  async deleteContainer(id: string) {
+    return fetchWithAuth(`/containers/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async startContainer(id: string) {
+    return fetchWithAuth(`/containers/${id}/start`, {
+      method: "POST",
+    })
+  },
+
+  async stopContainer(id: string) {
+    return fetchWithAuth(`/containers/${id}/stop`, {
+      method: "POST",
+    })
+  },
+
+  async restartContainer(id: string) {
+    return fetchWithAuth(`/containers/${id}/restart`, {
+      method: "POST",
+    })
+  },
+
+  async getImageTemplates() {
+    return fetchWithAuth("/containers/images")
+  },
 }
