@@ -7,7 +7,7 @@ import { SidebarNav } from "@/components/layout/sidebar-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
-import { Activity, LogOut, Menu, X } from "lucide-react"
+import { Activity, LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
 
 interface ProtectedLayoutProps {
@@ -78,14 +78,6 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
             {sidebarOpen && <span className="ml-2">Sair</span>}
           </Button>
         </div>
-
-        {/* Toggle Button */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="mx-3 mb-6 p-2 hover:bg-sidebar-accent rounded-lg text-sidebar-foreground"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
       </aside>
 
       {/* Main Content */}
