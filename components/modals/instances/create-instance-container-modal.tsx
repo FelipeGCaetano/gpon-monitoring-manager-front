@@ -20,6 +20,19 @@ import type { EnvDefinition, ImageTemplate } from "@/lib/types"
 import { Loader2, Lock, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
+function simpleUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+const randomUUID = (): string => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return simpleUUID();
+}
+
 // --- Tipos para os campos do formulário ---
 interface FormEnvVar {
     id: string;
@@ -61,8 +74,8 @@ interface CreateInstanceContainerModalProps {
 }
 
 // --- Valores Padrão ---
-const createDefaultPort = (): FormPortMap => ({ id: crypto.randomUUID(), privatePort: "", publicPort: "" });
-const createDefaultVolume = (): FormVolumeMap => ({ id: crypto.randomUUID(), name: "", containerPath: "" });
+const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
+const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
 const defaultNetwork: FormNetworkConfig = { name: "", ip: "" }
 // --------------------
 

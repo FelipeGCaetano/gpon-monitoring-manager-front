@@ -48,9 +48,22 @@ interface CreateContainerModalProps {
     onContainerCreated: () => void // Callback para recarregar a lista
 }
 
+function simpleUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+const randomUUID = (): string => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return simpleUUID();
+}
+
 // --- Valores Padrão do Formulário (Convertidos para Funções) ---
-const createDefaultPort = (): FormPortMap => ({ id: crypto.randomUUID(), privatePort: "", publicPort: "" });
-const createDefaultVolume = (): FormVolumeMap => ({ id: crypto.randomUUID(), name: "", containerPath: "" });
+const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
+const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
 // --- CORREÇÃO AQUI (1/3) ---
 const defaultNetwork: FormNetworkConfig = { name: "", ip: "" } // Removido "bridge"
 // -----------------------------------------------------------
