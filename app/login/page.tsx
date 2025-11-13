@@ -2,12 +2,12 @@
 
 import type React from "react"
 
-import { useState } from "react"
 import { useAuth } from "@/app/auth-context"
-import { Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Activity } from "lucide-react"
+import { useState } from "react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -84,16 +84,6 @@ export default function LoginPage() {
               {isLoading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
-            <p className="font-medium mb-2">Credenciais de Demonstração:</p>
-            <p>
-              Email: <code className="bg-background px-2 py-1 rounded text-foreground">admin@gpon.com</code>
-            </p>
-            <p>
-              Senha: <code className="bg-background px-2 py-1 rounded text-foreground">qualquer</code>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
