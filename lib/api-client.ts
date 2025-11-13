@@ -73,4 +73,36 @@ export const apiClient = {
       body: JSON.stringify(settings),
     })
   },
+
+  async getClients() {
+    return fetchWithAuth("/clients")
+  },
+
+  async createClient(client: any) {
+    return fetchWithAuth("/clients", {
+      method: "POST",
+      body: JSON.stringify(client),
+    })
+  },
+
+  async updateClient(id: string, client: any) {
+    return fetchWithAuth(`/clients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(client),
+    })
+  },
+
+  async deleteClient(id: string) {
+    return fetchWithAuth(`/clients/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async getInstances() {
+    return fetchWithAuth("/instances")
+  },
+
+  async getModules() {
+    return fetchWithAuth("/modules")
+  },
 }
