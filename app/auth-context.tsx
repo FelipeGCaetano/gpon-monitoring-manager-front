@@ -1,7 +1,7 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 
 interface User {
   id: string
@@ -47,28 +47,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoading, user, pathname, router])
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
   const login = async (email: string, password: string) => {
-    setIsLoading(true)
+    setIsLoading(true);
+    
     try {
-      // Simular chamada à API
-      // Em produção, substituir por chamada real à API
-      const mockUser: User = {
-        id: "1",
-        email,
-        name: email.split("@")[0],
-        role: email === "admin@gpon.com" ? "admin" : "operator",
+      // 1. Chamar a API REAL de login do seu back-end
+      const response = await fetch(`${API_BASE_URL}/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Email ou senha inválidos');
       }
 
-      setUser(mockUser)
-      localStorage.setItem("user", JSON.stringify(mockUser))
-      router.push("/")
+      const data = await response.json();
+
+      // 2. Salvar o usuário e o token
+      const userToSave: User = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        role: data.user.role.name.toLowerCase() as "admin" | "operator" | "viewer",
+      };
+
+      setUser(userToSave);
+      localStorage.setItem("user", JSON.stringify(userToSave));
+
+      // 3. Salvar o Access Token!
+      localStorage.setItem("token", data.accessToken);
+
+      router.push("/");
+
     } catch (error) {
-      console.error("Erro ao fazer login:", error)
-      throw error
+      console.error("Erro ao fazer login:", error);
+      throw error;
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const logout = () => {
     setUser(null)
