@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState } from "react"
 import { useAuth } from "@/app/auth-context"
-import { Activity, Menu, X, LogOut } from "lucide-react"
 import { SidebarNav } from "@/components/layout/sidebar-nav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { apiClient } from "@/lib/api-client"
+import { Activity, LogOut, Menu, X } from "lucide-react"
+import { useEffect, useState } from "react"
 
 interface ProtectedLayoutProps {
   children: React.ReactNode
@@ -18,6 +19,22 @@ interface ProtectedLayoutProps {
 export function ProtectedLayout({ children, title, description }: ProtectedLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { user, logout } = useAuth()
+  const [systemName, setSystemName] = useState("GPON")
+
+  // Busca nome do sistema
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const data = await apiClient.getSettings()
+
+        if (data?.systemName) setSystemName(data.systemName)
+      } catch (error) {
+        console.error("Erro ao buscar settings:", error)
+      }
+    }
+
+    fetchSettings()
+  }, [])
 
   return (
     <div className="flex h-screen bg-background">
@@ -33,7 +50,7 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <Activity className="w-6 h-6 text-primary-foreground" />
             </div>
-            {sidebarOpen && <span className="text-sidebar-foreground font-bold text-lg">GPON</span>}
+            {sidebarOpen && <span className="text-sidebar-foreground font-bold text-lg">{systemName}</span>}
           </div>
         </div>
 
