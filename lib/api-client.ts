@@ -62,4 +62,15 @@ export const apiClient = {
   async getRoles() {
     return fetchWithAuth("/roles")
   },
+
+  async getSettings() {
+    return fetchWithAuth("/settings")
+  },
+
+  async updateSettings(id: string, settings: any) {
+    return fetchWithAuth(`/settings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    })
+  },
 }
