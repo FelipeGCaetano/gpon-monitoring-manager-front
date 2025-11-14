@@ -56,6 +56,44 @@ export const apiClient = {
     return data
   },
 
+  async requestPasswordRecovery(email: string) {
+    const response = await fetch(`${API_BASE_URL}/users/password-recovery`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.message || "Credenciais inválidas")
+    }
+
+    return data
+  },
+
+  async validateRecoveryCode(content: {code: string, password: string, email: string}) {
+    const response = await fetch(`${API_BASE_URL}/users/password-recovery/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(content),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.message || "Credenciais inválidas")
+    }
+
+    return data
+  },
+
   async getAllUsers() {
     return fetchWithAuth("/users/all")
   },

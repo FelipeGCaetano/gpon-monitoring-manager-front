@@ -1,12 +1,12 @@
 "use client"
 
-import type React from "react"
-
 import { useAuth } from "@/app/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Activity } from "lucide-react"
+import { Activity, Loader2 } from "lucide-react"; // Importado Loader2
+import Link from "next/link"; // 1. Importar o Link
+import type React from "react"
 import { useState } from "react"
 
 export default function LoginPage() {
@@ -23,8 +23,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password)
-    } catch (err) {
-      setError("Email ou senha inválidos")
+    } catch (err: any) {
+      // O toast já é exibido no auth-context, mas podemos setar o erro local
+      setError(err.message || "Email ou senha inválidos")
       console.error(err)
     } finally {
       setIsLoading(false)
@@ -66,9 +67,11 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-foreground">
-                Senha
-              </label>
+              <div className="flex justify-between items-center">
+                <label htmlFor="password" className="text-sm font-medium text-foreground">
+                  Senha
+                </label>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -80,9 +83,23 @@ export default function LoginPage() {
               />
             </div>
 
+            {/* 2. Adicionar o Link "Esqueci minha senha" */}
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Entrando..." : "Entrar"}
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Entrar"
+              )}
             </Button>
+
+            <div className="flex justify-end">
+              <Link
+                href="/forgot-password"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Esqueci minha senha
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>

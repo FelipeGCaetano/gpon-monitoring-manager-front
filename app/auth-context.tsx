@@ -61,10 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Redirecionar para login se não autenticado
   useEffect(() => {
-    if (!isLoading && !user && pathname !== "/login") {
+    const publicRoutes = ["/login", "/forgot-password"]
+
+    if (!isLoading && !user && !publicRoutes.includes(pathname)) {
       router.push("/login")
     }
   }, [isLoading, user, pathname, router])
+
 
   // --- FUNÇÃO DE LOGIN ATUALIZADA ---
   const login = async (email: string, password: string) => {
@@ -72,9 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // 1. Chamar a API REAL de login
       const response = await apiClient.login({ email, password })
-      
+
       const { user, accessToken, permittedActions } = response
-      
+
       // 2. Processar e achatar as permissões
       const allPermissions = (permittedActions as PermissionGroup[]).flatMap(
         (group) => group.permissions
@@ -84,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 3. Salvar tudo no estado e no localStorage
       setUser(user)
       setPermissions(permissionsSet)
-      
+
       localStorage.setItem("user", JSON.stringify(user))
       localStorage.setItem("token", accessToken)
       localStorage.setItem("permissions", JSON.stringify(allPermissions)) // Salva o array
