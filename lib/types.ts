@@ -48,6 +48,7 @@ export interface Client {
 
 export interface GponInstance {
   id: string
+  name: string
   clientId: string
   client: Client
   modules: Module[]

@@ -228,7 +228,7 @@ export default function ModulesPage() {
                       ) : (
                         instancesList.map((instance) => (
                           <TableRow key={instance.id}>
-                            <TableCell className="font-medium">{instance.client.name}</TableCell>
+                            <TableCell className="font-medium">{instance.name}</TableCell>
                             <TableCell>
                               <div className="flex gap-1 flex-wrap">
                                 {instance.modules.length > 0 ? (

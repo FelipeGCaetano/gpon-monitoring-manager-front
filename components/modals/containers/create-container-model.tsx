@@ -364,7 +364,7 @@ export function CreateContainerModal({
                                             <SelectContent>
                                                 {gponInstances.map((instance) => (
                                                     <SelectItem key={instance.id} value={instance.id}>
-                                                        {instance.client.name}
+                                                        {instance.name}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

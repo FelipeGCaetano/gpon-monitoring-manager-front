@@ -179,6 +179,11 @@ export default function InstancesPage() {
                         key={instance.id}
                         className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-4 border-b border-border last:border-b-0"
                       >
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm text-muted-foreground">
+                            Nome: {instance.name}
+                          </p>
+                        </div>
                         {/* Coluna 1: Nome e Data */}
                         <div className="flex-1 min-w-[200px]">
                           <p className="text-sm text-muted-foreground">
@@ -201,38 +206,38 @@ export default function InstancesPage() {
                         {/* Coluna 3: Ações */}
                         <div className="flex items-center justify-end gap-2">
                           {userCan("read:instance") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleViewInstanceDetails(instance)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewInstanceDetails(instance)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
                           )}
                           {userCan("update:instance") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditInstance(instance)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditInstance(instance)}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
                           )}
                           {userCan("delete:instance") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteInstance(instance.id)}
-                            disabled={!!isSubmitting}
-                          >
-                            {isSubmitting === instance.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </Button>
-                          )}                                                
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteInstance(instance.id)}
+                              disabled={!!isSubmitting}
+                            >
+                              {isSubmitting === instance.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -245,12 +250,12 @@ export default function InstancesPage() {
 
         {/* Botão Criar Instância */}
         {userCan("create:instances") && (
-        <div className="flex justify-end">
-          <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Criar Instância
-          </Button>
-        </div>
+          <div className="flex justify-end">
+            <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Criar Instância
+            </Button>
+          </div>
         )}
       </div>
 

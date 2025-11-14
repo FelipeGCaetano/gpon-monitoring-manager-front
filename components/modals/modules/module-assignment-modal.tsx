@@ -63,7 +63,7 @@ export default function ModuleAssignmentModal({
         <div className="border-b border-border flex items-center justify-between p-6">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Atribuir Módulos</h2>
-            <p className="text-sm text-muted-foreground">Instância: {instance.client.name}</p>
+            <p className="text-sm text-muted-foreground">Instância: {instance.name}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-secondary rounded-lg" disabled={isSubmitting}>
             <X className="w-5 h-5" />

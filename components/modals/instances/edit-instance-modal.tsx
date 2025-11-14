@@ -9,6 +9,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
 import { Client, Container as ContainerType, GponInstance as Instance, Module } from "@/lib/types"; // Importando tipos
@@ -27,6 +28,7 @@ interface EditInstanceModalProps {
 
 // Interface para o formulário
 interface InstanceFormData {
+    name: string,
     clientId: string
     moduleIds: string[]
     containers: ContainerType[]
@@ -54,6 +56,7 @@ export function EditInstanceModal({
                     const instanceData: Instance = await apiClient.getInstanceById(instanceId)
                     if (instanceData) {
                         setFormData({
+                            name: instanceData.name,
                             clientId: instanceData.clientId,
                             moduleIds: instanceData.modules.map((m) => m.id), // Extrai os IDs dos módulos
                             containers: instanceData.containers || [], // Armazena os containers
@@ -80,6 +83,7 @@ export function EditInstanceModal({
         try {
             // O schema de update (CreateOrUpdateInstanceSchema) espera o payload completo
             const payload = {
+                name: formData.name,
                 clientId: formData.clientId,
                 moduleIds: formData.moduleIds,
                 // Reenviamos os dados dos containers, pois o schema de update os espera
@@ -141,6 +145,15 @@ export function EditInstanceModal({
                     <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden space-y-4">
                         {/* Wrapper de Scroll para o conteúdo */}
                         <div className="flex-1 overflow-y-auto p-1 space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Nome da Instância</label>
+                                <Input
+                                    value={formData.name}
+                                    onChange={(e) => handleFieldChange("name", e.target.value)}
+                                    disabled={isSubmitting}
+                                    required
+                                />
+                            </div>
 
                             {/* 1. Informações Gerais */}
                             <div className="grid grid-cols-2 gap-4">

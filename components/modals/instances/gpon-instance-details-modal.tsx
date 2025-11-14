@@ -60,9 +60,9 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{instance?.id}</DialogTitle>
+          <DialogTitle>{instance?.name}</DialogTitle>
           <DialogDescription>
-            Detalhes da Instância - {instance?.client?.name}
+            Detalhes da Instância
           </DialogDescription>
         </DialogHeader>
 
@@ -82,8 +82,8 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">ID</span>
-                  <span className="font-medium">{instance?.id}</span>
+                  <span className="text-muted-foreground">Nome</span>
+                  <span className="font-medium">{instance?.name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Cliente</span>
