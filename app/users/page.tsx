@@ -16,9 +16,11 @@ import { apiClient } from "@/lib/api-client"
 import type { Role, User } from "@/lib/types"
 import { Edit2, Loader2, Plus, Shield, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { useAuth } from "../auth-context"
 
 // Tipos auxiliares
-type RoleName = "ADMIN" | "SUPPORT_N2" | "SUPPORT_N3" | "TECHNICIAN"
+type RoleName = "ADMIN" | "SUPPORT_N2" | "SUPPORT_N3" | "VIEWER"
 interface UserFormData {
   name: string
   email: string
@@ -32,7 +34,7 @@ const roleDescriptions = {
   ADMIN: "Acesso completo ao sistema, gerenciamento de usuários e configurações.",
   SUPPORT_N2: "Gerenciamento de containers, visualização de instâncias.",
   SUPPORT_N3: "Acesso avançado para debugging de instâncias.",
-  TECHNICIAN: "Acesso somente leitura, monitoramento de status e logs.",
+  VIEWER: "Acesso somente leitura, monitoramento de status e logs.",
 }
 
 // --- Helpers ---
@@ -60,10 +62,12 @@ const defaultFormData: UserFormData = {
   email: "",
   phone: "",
   password: "",
-  role: "TECHNICIAN",
+  role: "VIEWER",
 }
 
 export default function UsersPage() {
+  const { userCan } = useAuth()
+
   // --- Estados ---
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
@@ -78,14 +82,21 @@ export default function UsersPage() {
   const fetchUsersAndRoles = async () => {
     setIsLoading(true)
     try {
+      // 6. Verificar permissões antes de buscar
+      const canReadUsers = userCan("read:users:all")
+      const canReadRoles = userCan("read:roles")
+
       const [usersResponse, rolesResponse] = await Promise.all([
-        apiClient.getAllUsers(),
-        apiClient.getRoles(),
+        canReadUsers ? apiClient.getAllUsers() : Promise.resolve({ items: [] }),
+        canReadRoles ? apiClient.getRoles() : Promise.resolve([]),
       ])
+
       setUsers(usersResponse.items || [])
       setRoles(rolesResponse || [])
+
     } catch (error) {
       console.error("Falha ao buscar dados:", error)
+      toast.error("Falha ao buscar dados dos usuários ou funções.")
     } finally {
       setIsLoading(false)
     }
@@ -109,7 +120,7 @@ export default function UsersPage() {
       case "SUPPORT_N2":
       case "SUPPORT_N3":
         return "bg-blue-500/10 text-blue-700"
-      case "TECHNICIAN":
+      case "VIEWER":
       default:
         return "bg-gray-500/10 text-gray-700"
     }
@@ -118,7 +129,7 @@ export default function UsersPage() {
   // --- Handlers ---
   const handleAddUser = () => {
     setEditingUser(null)
-    const defaultRole = roles.length > 0 ? (roles[0].name as RoleName) : "TECHNICIAN"
+    const defaultRole = roles.length > 0 ? (roles[0].name as RoleName) : "VIEWER"
     setFormData({ ...defaultFormData, role: defaultRole })
     setIsDialogOpen(true)
   }
@@ -213,17 +224,22 @@ export default function UsersPage() {
                       <td className="py-3 px-4 text-sm text-muted-foreground">{formatDate(user.createdAt)}</td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleEditUser(user)} className="gap-1">
-                            <Edit2 className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                          {userCan("update:partial:user") && (
+                            <Button size="sm" variant="outline" onClick={() => handleEditUser(user)} className="gap-1">
+                              <Edit2 className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {/* 12. Permissão de Deletar */}
+                          {userCan("delete:user") && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -235,44 +251,49 @@ export default function UsersPage() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end mt-6 mb-6">
-        <Button onClick={handleAddUser} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Adicionar Usuário
-        </Button>
-      </div>
+      {userCan("create:users") && (
+        <div className="flex justify-end mt-6 mb-6">
+          <Button onClick={handleAddUser} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Adicionar Usuário
+          </Button>
+        </div>
+      )}
 
       {/* Funções disponíveis */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Funções Disponíveis</CardTitle>
-          <CardDescription>Níveis de acesso e permissões do sistema</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            {roles.map((role) => (
-              <div key={role.id} className="p-4 rounded-lg border border-border">
-                <h3 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  {role.name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {roleDescriptions[role.name as RoleName] || "Descrição da função não disponível."}
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {userCan("read:roles") && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Funções Disponíveis</CardTitle>
+            <CardDescription>Níveis de acesso e permissões do sistema</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              {roles.map((role) => (
+                <div key={role.id} className="p-4 rounded-lg border border-border">
+                  <h3 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    {role.name}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {roleDescriptions[role.name as RoleName] || "Descrição da função não disponível."}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      <div className="flex justify-end mt-6 mb-6">
-        <Button onClick={handleAddUser} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Adicionar Função
-        </Button>
-      </div>
+      {userCan("create:roles") && (
+        <div className="flex justify-end mt-6 mb-6">
+          <Button onClick={handleAddUser} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Adicionar Função
+          </Button>
+        </div>
+      )}
 
-      {/* Modal de adicionar/editar */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -336,19 +357,15 @@ export default function UsersPage() {
                 disabled={isSubmitting || roles.length === 0}
               >
                 {roles.map((role) => (
-                  <option key={role.id} value={role.name}>
-                    {role.name}
-                  </option>
+                  <option key={role.id} value={role.name}>{role.name}</option>
                 ))}
               </select>
             </div>
             <Button onClick={handleSaveUser} className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
-              ) : editingUser ? (
-                "Atualizar Usuário"
               ) : (
-                "Criar Usuário"
+                editingUser ? "Atualizar Usuário" : "Criar Usuário"
               )}
             </Button>
           </div>

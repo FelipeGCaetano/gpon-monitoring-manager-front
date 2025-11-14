@@ -1,14 +1,16 @@
 "use client"
 
+import { apiClient } from "@/lib/api-client"
+import { User } from "@/lib/types"
 import { usePathname, useRouter } from "next/navigation"
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { toast } from "sonner"
 
-interface User {
-  id: string
-  email: string
-  name: string
-  role: "admin" | "operator" | "viewer"
+interface PermissionGroup {
+  method: string
+  permissions: string[]
 }
+type PermissionsSet = Set<string>
 
 interface AuthContextType {
   user: User | null
@@ -16,25 +18,42 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   isAuthenticated: boolean
+  userCan: (permission: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const loadPermissions = (): PermissionsSet => {
+  const stored = localStorage.getItem("permissions")
+  if (stored) {
+    try {
+      // Converte o array de strings salvo de volta para um Set
+      return new Set(JSON.parse(stored))
+    } catch (e) {
+      return new Set()
+    }
+  }
+  return new Set()
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [permissions, setPermissions] = useState<PermissionsSet>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
   // Verificar autenticação ao montar o componente
   useEffect(() => {
+    setIsLoading(true)
     const storedUser = localStorage.getItem("user")
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser))
+        setPermissions(loadPermissions()) // Carrega as permissões
       } catch (error) {
         console.error("Erro ao restaurar usuário:", error)
-        localStorage.removeItem("user")
+        localStorage.clear() // Limpa tudo se estiver corrompido
       }
     }
     setIsLoading(false)
@@ -47,59 +66,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoading, user, pathname, router])
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-
+  // --- FUNÇÃO DE LOGIN ATUALIZADA ---
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    
+    setIsLoading(true)
     try {
-      // 1. Chamar a API REAL de login do seu back-end
-      const response = await fetch(`${API_BASE_URL}/users/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      // 1. Chamar a API REAL de login
+      const response = await apiClient.login({ email, password })
+      
+      const { user, accessToken, permittedActions } = response
+      
+      // 2. Processar e achatar as permissões
+      const allPermissions = (permittedActions as PermissionGroup[]).flatMap(
+        (group) => group.permissions
+      )
+      const permissionsSet = new Set(allPermissions)
 
-      if (!response.ok) {
-        throw new Error('Email ou senha inválidos');
-      }
+      // 3. Salvar tudo no estado e no localStorage
+      setUser(user)
+      setPermissions(permissionsSet)
+      
+      localStorage.setItem("user", JSON.stringify(user))
+      localStorage.setItem("token", accessToken)
+      localStorage.setItem("permissions", JSON.stringify(allPermissions)) // Salva o array
 
-      const data = await response.json();
-
-      // 2. Salvar o usuário e o token
-      const userToSave: User = {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        role: data.user.role.name.toLowerCase() as "admin" | "operator" | "viewer",
-      };
-
-      setUser(userToSave);
-      localStorage.setItem("user", JSON.stringify(userToSave));
-
-      // 3. Salvar o Access Token!
-      localStorage.setItem("token", data.accessToken);
-
-      router.push("/");
-
-    } catch (error) {
-      console.error("Erro ao fazer login:", error);
-      throw error;
+      router.push("/")
+    } catch (error: any) {
+      console.error("Erro ao fazer login:", error)
+      toast.error(error.message || "Email ou senha inválidos")
+      throw error
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
+  // --- FUNÇÃO DE LOGOUT ATUALIZADA ---
   const logout = () => {
     setUser(null)
+    setPermissions(new Set())
     localStorage.removeItem("user")
+    localStorage.removeItem("token")
+    localStorage.removeItem("permissions") // Limpa as permissões
     router.push("/login")
   }
 
+  // --- NOSSO NOVO HOOK DE VERIFICAÇÃO ---
+  const userCan = (permission: string): boolean => {
+    if (isLoading) return false // Não permite nada enquanto carrega
+    return permissions.has(permission)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user, userCan }}>
       {children}
     </AuthContext.Provider>
   )

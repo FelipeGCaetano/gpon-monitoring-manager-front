@@ -11,6 +11,7 @@ import { Client } from "@/lib/types"
 import { Edit2, Loader2, Plus, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { useAuth } from "../auth-context"
 
 // --- Helper para formatar telefone ---
 const formatPhone = (value: string) => {
@@ -30,6 +31,8 @@ const formatPhone = (value: string) => {
 }
 
 export default function ClientsPage() {
+  const { userCan } = useAuth()
+
   // --- Estados dos Modais ---
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false)
   const [isEditClientOpen, setIsEditClientOpen] = useState(false)
@@ -41,13 +44,18 @@ export default function ClientsPage() {
 
   // --- Buscar clientes ---
   const fetchClients = async () => {
-    setIsLoadingClients(true)
-    try {
-      const clientsData = await apiClient.getClients()
-      setClients(clientsData || [])
-    } catch (error) {
-      console.error("Falha ao buscar clientes:", error)
-    } finally {
+    if (userCan("read:clients")) {
+      setIsLoadingClients(true)
+      try {
+        const clientsData = await apiClient.getClients()
+        setClients(clientsData || [])
+      } catch (error) {
+        console.error("Falha ao buscar clientes:", error)
+      } finally {
+        setIsLoadingClients(false)
+      }
+    } else {
+      setClients([])
       setIsLoadingClients(false)
     }
   }
@@ -126,9 +134,12 @@ export default function ClientsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {userCan("update:client") && (
                           <Button size="sm" variant="ghost" onClick={() => handleEditClient(client)}>
                             <Edit2 className="w-4 h-4" />
                           </Button>
+                          )}
+                          {userCan("delete:client") && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -137,6 +148,7 @@ export default function ClientsPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -150,10 +162,12 @@ export default function ClientsPage() {
 
       {/* Header Button */}
       <div className="flex justify-end mt-6">
+      {userCan("create:clients") && (
         <Button className="gap-2" onClick={() => setIsCreateClientOpen(true)}>
           <Plus className="w-4 h-4" />
           Adicionar Cliente
         </Button>
+      )} 
       </div>
 
       {/* Modais */}

@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { useAuth } from "../auth-context"
 
 // Helper para formatar data
 const formatDate = (dateString: Date | string) => {
@@ -39,6 +40,8 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function InstancesPage() {
+  const { userCan } = useAuth()
+
   // --- Estados dos Modais ---
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null)
   const [instanceDetailsOpen, setInstanceDetailsOpen] = useState(false)
@@ -58,16 +61,24 @@ export default function InstancesPage() {
   const fetchPageData = async () => {
     setIsLoading(true)
     try {
-      const [instancesData, modulesData, clientsData] = await Promise.all([
-        apiClient.getInstances(),
-        apiClient.getModules(),
-        apiClient.getClients(),
-      ])
-      setInstances(instancesData || [])
-      setModules(modulesData || [])
-      setClients(clientsData || [])
+      // Otimização: Só busca dados que o usuário pode ver
+      if (userCan("read:instances")) {
+        const [instancesData, modulesData, clientsData] = await Promise.all([
+          apiClient.getInstances(),
+          userCan("read:modules") ? apiClient.getModules() : Promise.resolve([]),
+          userCan("read:clients") ? apiClient.getClients() : Promise.resolve([]),
+        ])
+        setInstances(instancesData || [])
+        setModules(modulesData || [])
+        setClients(clientsData || [])
+      } else {
+        setInstances([])
+        setModules([])
+        setClients([])
+      }
     } catch (error) {
       console.error("Falha ao buscar dados da página:", error)
+      toast.error("Falha ao buscar dados da página.")
     } finally {
       setIsLoading(false)
     }
@@ -189,6 +200,7 @@ export default function InstancesPage() {
 
                         {/* Coluna 3: Ações */}
                         <div className="flex items-center justify-end gap-2">
+                          {userCan("read:instance") && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -196,6 +208,8 @@ export default function InstancesPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          )}
+                          {userCan("update:instance") && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -203,6 +217,8 @@ export default function InstancesPage() {
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
+                          )}
+                          {userCan("delete:instance") && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -216,6 +232,7 @@ export default function InstancesPage() {
                               <Trash2 className="w-4 h-4" />
                             )}
                           </Button>
+                          )}                                                
                         </div>
                       </div>
                     ))}
@@ -227,12 +244,14 @@ export default function InstancesPage() {
         )}
 
         {/* Botão Criar Instância */}
+        {userCan("create:instances") && (
         <div className="flex justify-end">
           <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)}>
             <Plus className="w-4 h-4" />
             Criar Instância
           </Button>
         </div>
+        )}
       </div>
 
       {/* --- Modais --- */}

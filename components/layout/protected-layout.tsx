@@ -18,18 +18,22 @@ interface ProtectedLayoutProps {
 
 export function ProtectedLayout({ children, title, description }: ProtectedLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const { user, logout } = useAuth()
+  const { userCan, user, logout } = useAuth()
   const [systemName, setSystemName] = useState("GPON")
 
   // Busca nome do sistema
   useEffect(() => {
     const fetchSettings = async () => {
-      try {
-        const data = await apiClient.getSettings()
-
-        if (data?.systemName) setSystemName(data.systemName)
-      } catch (error) {
-        console.error("Erro ao buscar settings:", error)
+      if (userCan("read:settings")) {
+        try {
+          const data = await apiClient.getSettings()
+  
+          if (data?.systemName) setSystemName(data.systemName)
+        } catch (error) {
+          console.error("Erro ao buscar settings:", error)
+        }
+      } else {
+        setSystemName("GPON Manager")
       }
     }
 
@@ -64,7 +68,7 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
               <p className="font-medium text-sidebar-foreground truncate">{user?.name}</p>
               <p className="text-sidebar-foreground/70 text-xs truncate">{user?.email}</p>
               <Badge variant="outline" className="mt-2 text-xs">
-                {user?.role === "admin" ? "Administrador" : user?.role === "operator" ? "Operador" : "Visualizador"}
+                {user?.role.name === "ADMIN" ? "Administrador" : user?.role.name === "OPERATOR" ? "Operador" : "Visualizador"}
               </Badge>
             </div>
           )}

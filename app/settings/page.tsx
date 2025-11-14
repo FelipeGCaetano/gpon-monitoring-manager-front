@@ -5,8 +5,26 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
-import { Loader2, Plus, Save, Trash2 } from "lucide-react"; // 1. Adicionado Plus e Trash2
+import { Loader2, Plus, Save, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { useAuth } from "../auth-context"; // 1. Importar o hook useAuth
+
+// --- Polyfill/Fallback para crypto.randomUUID ---
+function simpleUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+const randomUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return simpleUUID();
+}
+// --- FIM DA CORREÇÃO ---
+
 
 // 2. Interface atualizada
 interface GlobalEnv {
@@ -35,6 +53,7 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function SettingsPage() {
+  const { userCan } = useAuth() // 2. Inicializar o hook
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -51,22 +70,28 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setIsLoading(true)
     try {
-      const settingsData = await apiClient.getSettings()
-      setSettingsId(settingsData.id)
-      setGeneralSettings({
-        systemName: settingsData.systemName,
-        adminEmail: settingsData.adminEmail,
-        updatedAt: formatDate(settingsData.updatedAt),
-      })
-      // 3. Adiciona a flag isNew: false para variáveis existentes
-      setGlobalEnvs(settingsData.globalEnv.map((env: any) => ({ ...env, isNew: false })) || [])
+      // 3. Checar permissão de leitura
+      if (userCan("read:settings")) {
+        const settingsData = await apiClient.getSettings()
+        setSettingsId(settingsData.id)
+        setGeneralSettings({
+          systemName: settingsData.systemName,
+          adminEmail: settingsData.adminEmail,
+          updatedAt: formatDate(settingsData.updatedAt),
+        })
+        setGlobalEnvs(settingsData.globalEnv.map((env: any) => ({ ...env, isNew: false })) || [])
+      } else {
+        setGlobalEnvs([])
+      }
     } catch (error) {
       console.error("Falha ao carregar configurações:", error)
+      toast.error("Falha ao carregar configurações.")
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Atualizado para depender do userCan
   useEffect(() => {
     fetchSettings()
   }, [])
@@ -80,7 +105,6 @@ export default function SettingsPage() {
     }))
   }
 
-  // 4. Handler de Variáveis Globais (Atualizado para usar ID e 'key'/'value')
   const handleGlobalVarChange = (id: string, field: "key" | "value", value: string) => {
     setGlobalEnvs((prevEnvs) =>
       prevEnvs.map((env) =>
@@ -89,15 +113,13 @@ export default function SettingsPage() {
     )
   }
 
-  // 5. Nova função para Adicionar Env
   const handleAddNewGlobalVar = () => {
     setGlobalEnvs((prevEnvs) => [
       ...prevEnvs,
-      { id: crypto.randomUUID(), key: "", value: "", isNew: true },
+      { id: randomUUID(), key: "", value: "", isNew: true }, // Usa randomUUID
     ])
   }
 
-  // 6. Nova função para Deletar Env
   const handleDeleteGlobalVar = (id: string) => {
     setGlobalEnvs((prevEnvs) => prevEnvs.filter((env) => env.id !== id))
   }
@@ -106,27 +128,29 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     if (!settingsId) {
       console.error("ID das Configurações não encontrado.")
+      toast.error("Erro: ID das Configurações não encontrado.")
       return
     }
 
     setIsSubmitting(true)
     try {
-      // 7. Payload atualizado para filtrar novas chaves vazias
       const payload = {
         systemName: generalSettings.systemName,
         adminEmail: generalSettings.adminEmail,
         globalEnvs: globalEnvs
-          .filter(env => env.key.trim() !== "") // Garante que a chave não está vazia
-          .map((env) => ({ // Envia apenas o que a API espera
+          .filter(env => env.key.trim() !== "")
+          .map((env) => ({
             key: env.key,
             value: env.value,
           })),
       }
 
       await apiClient.updateSettings(settingsId, payload)
-      await fetchSettings() // Recarrega os dados para sincronizar IDs
+      toast.success("Configurações salvas com sucesso!")
+      await fetchSettings() // Recarrega os dados
     } catch (error) {
       console.error("Falha ao salvar configurações:", error)
+      toast.error("Falha ao salvar configurações.")
     } finally {
       setIsSubmitting(false)
     }
@@ -153,6 +177,10 @@ export default function SettingsPage() {
                   <div className="flex justify-center items-center h-40">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
+                ) : !userCan("read:settings") ? ( // 4. Validação de Leitura
+                  <div className="text-center text-destructive py-10">
+                    Você não tem permissão para ver as configurações.
+                  </div>
                 ) : (
                   <>
                     <div className="grid md:grid-cols-2 gap-6">
@@ -163,7 +191,8 @@ export default function SettingsPage() {
                           name="systemName"
                           value={generalSettings.systemName}
                           onChange={handleGeneralChange}
-                          disabled={isSubmitting}
+                          // 5. Adicionar verificação de permissão no disabled
+                          disabled={isSubmitting || !userCan("update:setting")}
                           className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
                         />
                       </div>
@@ -174,7 +203,8 @@ export default function SettingsPage() {
                           name="adminEmail"
                           value={generalSettings.adminEmail}
                           onChange={handleGeneralChange}
-                          disabled={isSubmitting}
+                          // 5. Adicionar verificação de permissão no disabled
+                          disabled={isSubmitting || !userCan("update:setting")}
                           className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
                         />
                       </div>
@@ -198,20 +228,23 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                      <Button
-                        className="gap-2"
-                        onClick={handleSaveSettings}
-                        disabled={isSubmitting || isLoading}
-                      >
-                        {isSubmitting ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        Salvar Alterações
-                      </Button>
-                    </div>
+                    {/* 5. Envelopar o botão de Salvar */}
+                    {userCan("update:setting") && (
+                      <div className="flex gap-4 pt-4">
+                        <Button
+                          className="gap-2"
+                          onClick={handleSaveSettings}
+                          disabled={isSubmitting || isLoading}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                          Salvar Alterações
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
@@ -230,6 +263,10 @@ export default function SettingsPage() {
                   <div className="flex justify-center items-center h-40">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
+                ) : !userCan("read:settings") ? ( // 4. Validação de Leitura
+                  <div className="text-center text-destructive py-10">
+                    Você não tem permissão para ver as variáveis globais.
+                  </div>
                 ) : (
                   <>
                     <div className="space-y-3">
@@ -242,9 +279,9 @@ export default function SettingsPage() {
                               type="text"
                               placeholder="EXEMPLO_VAR"
                               value={env.key}
-                              // Só permite editar a chave se for um item novo
                               onChange={(e) => handleGlobalVarChange(env.id, 'key', e.target.value)}
-                              disabled={isSubmitting || !env.isNew}
+                              // --- CORREÇÃO AQUI ---
+                              disabled={isSubmitting || !env.isNew || !userCan("update:setting")}
                               className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-70 disabled:bg-secondary"
                             />
                           </div>
@@ -256,51 +293,60 @@ export default function SettingsPage() {
                               placeholder="Valor da variável"
                               value={env.value}
                               onChange={(e) => handleGlobalVarChange(env.id, 'value', e.target.value)}
-                              disabled={isSubmitting}
+                              // --- CORREÇÃO AQUI ---
+                              disabled={isSubmitting || !userCan("update:setting")}
                               className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-50"
                             />
                           </div>
-                          {/* Botão Deletar */}
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDeleteGlobalVar(env.id)}
-                            disabled={isSubmitting}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {/* --- CORREÇÃO AQUI --- */}
+                          {/* Botão Deletar (agora com verificação) */}
+                          {userCan("update:setting") && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleDeleteGlobalVar(env.id)}
+                              disabled={isSubmitting}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {/* --- FIM DA CORREÇÃO --- */}
                         </div>
                       ))}
                     </div>
 
-                    {/* Botão Adicionar */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-2"
-                      onClick={handleAddNewGlobalVar}
-                      disabled={isSubmitting}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Adicionar Variável
-                    </Button>
+                    {/* Botão Adicionar (já está correto) */}
+                    {userCan("update:setting") && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={handleAddNewGlobalVar}
+                        disabled={isSubmitting}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Adicionar Variável
+                      </Button>
+                    )}
 
                     <hr className="border-border" />
 
-                    {/* Botão Salvar */}
-                    <Button
-                      className="gap-2 w-full"
-                      onClick={handleSaveSettings}
-                      disabled={isSubmitting || isLoading}
-                    >
-                      {isSubmitting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Save className="w-4 h-4" />
-                      )}
-                      Salvar Variáveis Globais
-                    </Button>
+                    {/* Botão Salvar (já está correto) */}
+                    {userCan("update:setting") && (
+                      <Button
+                        className="gap-2 w-full"
+                        onClick={handleSaveSettings}
+                        disabled={isSubmitting || isLoading}
+                      >
+                        {isSubmitting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Salvar Variáveis Globais
+                      </Button>
+                    )}
                   </>
                 )}
               </CardContent>

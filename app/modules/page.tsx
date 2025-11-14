@@ -13,8 +13,11 @@ import { apiClient } from "@/lib/api-client"
 import { GponInstance, Module } from "@/lib/types"
 import { Edit2, Loader2, Plus, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useAuth } from "../auth-context"
 
 export default function ModulesPage() {
+  const { userCan } = useAuth()
+
   // --- Estados dos Modais ---
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -31,24 +34,34 @@ export default function ModulesPage() {
   // --- Funções de Busca ---
   const fetchModules = async () => {
     setIsLoadingModules(true)
-    try {
-      const data = await apiClient.getModules()
-      setModulesList(data || [])
-    } catch (error) {
-      console.error("Falha ao buscar módulos:", error)
-    } finally {
+    if (userCan("read:modules")) {
+      try {
+        const data = await apiClient.getModules()
+        setModulesList(data || [])
+      } catch (error) {
+        console.error("Falha ao buscar módulos:", error)
+      } finally {
+        setIsLoadingModules(false)
+      }
+    } else {
+      setModulesList([])
       setIsLoadingModules(false)
     }
   }
 
   const fetchInstances = async () => {
     setIsLoadingAssignments(true)
-    try {
-      const data = await apiClient.getInstances()
-      setInstancesList(data || [])
-    } catch (error) {
-      console.error("Falha ao buscar instâncias:", error)
-    } finally {
+    if (userCan("read:instances")) {
+      try {
+        const data = await apiClient.getInstances()
+        setInstancesList(data || [])
+      } catch (error) {
+        console.error("Falha ao buscar instâncias:", error)
+      } finally {
+        setIsLoadingAssignments(false)
+      }
+    } else {
+      setInstancesList([])
       setIsLoadingAssignments(false)
     }
   }
@@ -118,10 +131,12 @@ export default function ModulesPage() {
                     <CardTitle>Módulos Disponíveis</CardTitle>
                     <CardDescription>Todos os módulos cadastrados no sistema</CardDescription>
                   </div>
-                  <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
-                    <Plus className="w-4 h-4" />
-                    Adicionar Módulo
-                  </Button>
+                  {userCan("create:modules") && (
+                    <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
+                      <Plus className="w-4 h-4" />
+                      Adicionar Módulo
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -152,21 +167,26 @@ export default function ModulesPage() {
                             <TableCell>{module.instances.length}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleOpenEditModal(module)}
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => handleDeleteModule(module.id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {userCan("update:module") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleOpenEditModal(module)}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {userCan("delete:module") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => handleDeleteModule(module.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

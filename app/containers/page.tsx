@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client"
 import { Container as ContainerType } from "@/lib/types"
 import { Eye, Loader2, Pause, Play, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useAuth } from "../auth-context"
 
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return "N/A"
@@ -22,6 +23,8 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function ContainersPage() {
+  const { userCan } = useAuth()
+
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null)
@@ -33,12 +36,17 @@ export default function ContainersPage() {
   // --- Funções da API ---
   const fetchContainers = async () => {
     setIsLoading(true)
-    try {
-      const data = await apiClient.getContainers()
-      setContainers(data || [])
-    } catch (error) {
-      console.error("Falha ao buscar containers:", error)
-    } finally {
+    if (userCan("read:containers")) {
+      try {
+        const data = await apiClient.getContainers()
+        setContainers(data || [])
+      } catch (error) {
+        console.error("Falha ao buscar containers:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+      setContainers([])
       setIsLoading(false)
     }
   }
@@ -163,30 +171,38 @@ export default function ContainersPage() {
                         <TableCell className="text-sm">{formatDate(container.createdAt)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleViewDetails(container)}
-                              disabled={!!isSubmitting}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleToggleStatus(container)}
-                              disabled={!!isSubmitting}
-                            >
-                              {isSubmitting === container.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : container.status === "RUNNING" ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Play className="w-4 h-4" />
-                              )}
-                            </Button>
-
+                            {userCan("read:container") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleViewDetails(container)}
+                                disabled={!!isSubmitting}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {(userCan("containers:start") || userCan("containers:stop")) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                // Desabilita se a ação específica não for permitida
+                                onClick={() => handleToggleStatus(container)}
+                                disabled={
+                                  (container.status === "RUNNING" && !userCan("containers:stop")) ||
+                                  (container.status !== "RUNNING" && !userCan("containers:start")) ||
+                                  !!isSubmitting
+                                }
+                              >
+                                {isSubmitting === container.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : container.status === "RUNNING" ? (
+                                  <Pause className="w-4 h-4" />
+                                ) : (
+                                  <Play className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
+                            {userCan("containers:restart") && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -199,7 +215,8 @@ export default function ContainersPage() {
                                 <RefreshCw className="w-4 h-4" />
                               )}
                             </Button>
-
+                            )}
+                            {userCan("delete:container") && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -213,6 +230,7 @@ export default function ContainersPage() {
                                 <Trash2 className="w-4 h-4" />
                               )}
                             </Button>
+                            )}                          
                           </div>
                         </TableCell>
                       </TableRow>
@@ -224,12 +242,14 @@ export default function ContainersPage() {
           </CardContent>
         </Card>
 
+        {userCan("create:containers") && (
         <div className="flex justify-end mt-6">
           <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="w-4 h-4" />
             Novo Container
           </Button>
         </div>      
+        )}
       </div>
 
       {/* Modais */}
