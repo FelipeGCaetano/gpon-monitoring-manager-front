@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { useAuth } from "../auth-context"
 
 // Tipos auxiliares
-type RoleName = "ADMIN" | "SUPPORT_N2" | "SUPPORT_N3" | "VIEWER"
+type RoleName = "ADMIN" | "OPERATOR" | "OPERATOR_N2" | "VIEWER"
 interface UserFormData {
   name: string
   email: string
@@ -32,8 +32,8 @@ interface UserFormData {
 // --- Descrições estáticas de roles ---
 const roleDescriptions = {
   ADMIN: "Acesso completo ao sistema, gerenciamento de usuários e configurações.",
-  SUPPORT_N2: "Gerenciamento de containers, visualização de instâncias.",
-  SUPPORT_N3: "Acesso avançado para debugging de instâncias.",
+  OPERATOR: "Gerenciamento de containers, visualização de instâncias.",
+  OPERATOR_N2: "Acesso avançado para debugging de instâncias.",
   VIEWER: "Acesso somente leitura, monitoramento de status e logs.",
 }
 
@@ -117,8 +117,8 @@ export default function UsersPage() {
     switch (roleName.toUpperCase()) {
       case "ADMIN":
         return "bg-red-500/10 text-red-700"
-      case "SUPPORT_N2":
-      case "SUPPORT_N3":
+      case "OPERATOR":
+      case "OPERATOR_N2":
         return "bg-blue-500/10 text-blue-700"
       case "VIEWER":
       default:
