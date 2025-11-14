@@ -8,7 +8,7 @@ import { apiClient } from "@/lib/api-client"
 import { Loader2, Plus, Save, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { useAuth } from "../auth-context"; // 1. Importar o hook useAuth
+import { useAuth } from "../auth-context"
 
 // --- Polyfill/Fallback para crypto.randomUUID ---
 function simpleUUID() {
@@ -28,16 +28,18 @@ const randomUUID = (): string => {
 
 // 2. Interface atualizada
 interface GlobalEnv {
-  id: string // ID do banco de dados ou crypto.randomUUID() para novos
+  id: string
   key: string
   value: string
-  isNew?: boolean // Flag para identificar novas variáveis
+  isNew?: boolean
 }
 
 interface GeneralSettings {
   systemName: string
   adminEmail: string
   updatedAt: string
+  dockerHost: string
+  dockerPort: number
 }
 
 // Helper para formatar data
@@ -53,7 +55,7 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function SettingsPage() {
-  const { userCan } = useAuth() // 2. Inicializar o hook
+  const { userCan } = useAuth()
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -62,6 +64,8 @@ export default function SettingsPage() {
     systemName: "",
     adminEmail: "",
     updatedAt: "",
+    dockerHost: "", // Padrão vazio
+    dockerPort: 2375
   })
 
   const [globalEnvs, setGlobalEnvs] = useState<GlobalEnv[]>([])
@@ -70,7 +74,6 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setIsLoading(true)
     try {
-      // 3. Checar permissão de leitura
       if (userCan("read:settings")) {
         const settingsData = await apiClient.getSettings()
         setSettingsId(settingsData.id)
@@ -78,6 +81,8 @@ export default function SettingsPage() {
           systemName: settingsData.systemName,
           adminEmail: settingsData.adminEmail,
           updatedAt: formatDate(settingsData.updatedAt),
+          dockerHost: settingsData.dockerHost || "", // Fallback para string vazia
+          dockerPort: settingsData.dockerPort || 2375 // Fallback para porta padrão
         })
         setGlobalEnvs(settingsData.globalEnv.map((env: any) => ({ ...env, isNew: false })) || [])
       } else {
@@ -91,17 +96,18 @@ export default function SettingsPage() {
     }
   }
 
-  // Atualizado para depender do userCan
+  // --- CORREÇÃO: useEffect ATUALIZADO ---
   useEffect(() => {
     fetchSettings()
   }, [])
+  // --- FIM DA CORREÇÃO ---
 
   // --- Handlers ---
   const handleGeneralChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setGeneralSettings((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === 'dockerPort' ? Number(value) : value, // Converte a porta para número
     }))
   }
 
@@ -134,9 +140,12 @@ export default function SettingsPage() {
 
     setIsSubmitting(true)
     try {
+      // --- CORREÇÃO: Payload ATUALIZADO ---
       const payload = {
         systemName: generalSettings.systemName,
         adminEmail: generalSettings.adminEmail,
+        dockerHost: generalSettings.dockerHost,
+        dockerPort: Number(generalSettings.dockerPort), // Garante que é um número
         globalEnvs: globalEnvs
           .filter(env => env.key.trim() !== "")
           .map((env) => ({
@@ -144,6 +153,7 @@ export default function SettingsPage() {
             value: env.value,
           })),
       }
+      // --- FIM DA CORREÇÃO ---
 
       await apiClient.updateSettings(settingsId, payload)
       toast.success("Configurações salvas com sucesso!")
@@ -160,10 +170,13 @@ export default function SettingsPage() {
     <ProtectedLayout title="Configurações" description="Gerenciar configurações globais do sistema">
       <div className="max-w-6xl space-y-6">
         <Tabs defaultValue="general" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+          {/* --- CORREÇÃO: TabsList ATUALIZADA --- */}
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="docker">Docker</TabsTrigger>
             <TabsTrigger value="variables">Variáveis Globais</TabsTrigger>
           </TabsList>
+          {/* --- FIM DA CORREÇÃO --- */}
 
           {/* Aba: Geral */}
           <TabsContent value="general" className="space-y-4">
@@ -177,7 +190,7 @@ export default function SettingsPage() {
                   <div className="flex justify-center items-center h-40">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : !userCan("read:settings") ? ( // 4. Validação de Leitura
+                ) : !userCan("read:settings") ? (
                   <div className="text-center text-destructive py-10">
                     Você não tem permissão para ver as configurações.
                   </div>
@@ -191,7 +204,6 @@ export default function SettingsPage() {
                           name="systemName"
                           value={generalSettings.systemName}
                           onChange={handleGeneralChange}
-                          // 5. Adicionar verificação de permissão no disabled
                           disabled={isSubmitting || !userCan("update:setting")}
                           className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
                         />
@@ -203,7 +215,6 @@ export default function SettingsPage() {
                           name="adminEmail"
                           value={generalSettings.adminEmail}
                           onChange={handleGeneralChange}
-                          // 5. Adicionar verificação de permissão no disabled
                           disabled={isSubmitting || !userCan("update:setting")}
                           className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
                         />
@@ -228,7 +239,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* 5. Envelopar o botão de Salvar */}
                     {userCan("update:setting") && (
                       <div className="flex gap-4 pt-4">
                         <Button
@@ -251,6 +261,74 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
+          {/* --- NOVA ABA: Docker --- */}
+          <TabsContent value="docker" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuração do Docker</CardTitle>
+                <CardDescription>Endereço do Host e Porta do Daemon Docker</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-40">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !userCan("read:settings") ? (
+                  <div className="text-center text-destructive py-10">
+                    Você não tem permissão para ver as configurações do Docker.
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Host do Docker</label>
+                        <input
+                          type="text"
+                          name="dockerHost"
+                          value={generalSettings.dockerHost}
+                          onChange={handleGeneralChange}
+                          placeholder="ex: 192.168.0.10"
+                          disabled={isSubmitting || !userCan("update:setting")}
+                          className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Porta do Docker</label>
+                        <input
+                          type="number"
+                          name="dockerPort"
+                          value={generalSettings.dockerPort}
+                          onChange={handleGeneralChange}
+                          placeholder="ex: 2375"
+                          disabled={isSubmitting || !userCan("update:setting")}
+                          className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {userCan("update:setting") && (
+                      <div className="flex gap-4 pt-4">
+                        <Button
+                          className="gap-2"
+                          onClick={handleSaveSettings}
+                          disabled={isSubmitting || isLoading}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                          Salvar Configurações do Docker
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          {/* --- FIM DA NOVA ABA --- */}
+
           {/* Aba: Variáveis Globais (Atualizada com CRUD) */}
           <TabsContent value="variables" className="space-y-4">
             <Card>
@@ -263,7 +341,7 @@ export default function SettingsPage() {
                   <div className="flex justify-center items-center h-40">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : !userCan("read:settings") ? ( // 4. Validação de Leitura
+                ) : !userCan("read:settings") ? (
                   <div className="text-center text-destructive py-10">
                     Você não tem permissão para ver as variáveis globais.
                   </div>
@@ -280,7 +358,6 @@ export default function SettingsPage() {
                               placeholder="EXEMPLO_VAR"
                               value={env.key}
                               onChange={(e) => handleGlobalVarChange(env.id, 'key', e.target.value)}
-                              // --- CORREÇÃO AQUI ---
                               disabled={isSubmitting || !env.isNew || !userCan("update:setting")}
                               className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-70 disabled:bg-secondary"
                             />
@@ -293,13 +370,10 @@ export default function SettingsPage() {
                               placeholder="Valor da variável"
                               value={env.value}
                               onChange={(e) => handleGlobalVarChange(env.id, 'value', e.target.value)}
-                              // --- CORREÇÃO AQUI ---
                               disabled={isSubmitting || !userCan("update:setting")}
                               className="w-full px-3 py-2 rounded-lg bg-input border border-border text-foreground disabled:opacity-50"
                             />
                           </div>
-                          {/* --- CORREÇÃO AQUI --- */}
-                          {/* Botão Deletar (agora com verificação) */}
                           {userCan("update:setting") && (
                             <Button
                               type="button"
@@ -311,12 +385,10 @@ export default function SettingsPage() {
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
-                          {/* --- FIM DA CORREÇÃO --- */}
                         </div>
                       ))}
                     </div>
 
-                    {/* Botão Adicionar (já está correto) */}
                     {userCan("update:setting") && (
                       <Button
                         type="button"
@@ -332,7 +404,6 @@ export default function SettingsPage() {
 
                     <hr className="border-border" />
 
-                    {/* Botão Salvar (já está correto) */}
                     {userCan("update:setting") && (
                       <Button
                         className="gap-2 w-full"
