@@ -46,13 +46,13 @@ export const apiClient = {
         password: credentials.password,
       }),
     });
-    
+
     const data = await response.json()
 
     if (!response.ok) {
       throw new Error(data.message || "Credenciais inválidas")
     }
-    
+
     return data
   },
 
@@ -230,5 +230,53 @@ export const apiClient = {
 
   async getImageTemplates() {
     return fetchWithAuth("/containers/images")
-  }
+  },
+
+  async getImageTemplateById(id: string) {
+    return fetchWithAuth(`/containers/images/${id}`)
+  },
+
+  async createImageTemplate(imageTemplate: any) {
+    return fetchWithAuth("/containers/images", {
+      method: "POST",
+      body: JSON.stringify(imageTemplate),
+    })
+  },
+
+  async updateImageTemplate(id: string, imageTemplate: any) {
+    return fetchWithAuth(`/containers/images/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(imageTemplate),
+    })
+  },
+
+  async deleteImageTemplate(id: string) {
+    return fetchWithAuth(`/containers/images/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async getEnvDefinitions(id: string) {
+    return fetchWithAuth(`/containers/images/${id}/envs`)
+  },
+
+  async createEnvDefinitions(id: string, envDefinition: any) {
+    return fetchWithAuth(`/containers/images/${id}/envs`, {
+      method: "POST",
+      body: JSON.stringify(envDefinition),
+    })
+  },
+
+  async updateEnvDefinition(id: string, envId: string, envDefinition: any) {
+    return fetchWithAuth(`/containers/images/${id}/envs/${envId}`, {
+      method: "PUT",
+      body: JSON.stringify(envDefinition),
+    })
+  },
+
+  async deleteEnvDefinition(id: string, envId: string,) {
+    return fetchWithAuth(`/containers/images/${id}/envs/${envId}`, {
+      method: "DELETE",
+    })
+  },
 }

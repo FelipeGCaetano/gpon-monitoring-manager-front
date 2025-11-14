@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/app/auth-context"
 import { cn } from "@/lib/utils"
-import { Component, Container, Layers, LayoutDashboard, Settings, Users } from "lucide-react"
+import { Component, Container, HardDrive, Layers, LayoutDashboard, Settings, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -11,6 +11,7 @@ const navigationItems = [
   { icon: Container, label: "Containers", href: "/containers", permission: "read:containers" },
   { icon: Layers, label: "Módulos", href: "/modules", permission: "read:modules" },
   { icon: Component, label: "Instâncias", href: "/instances", permission: "read:instances" },
+  { icon: HardDrive, label: "Templates", href: "/image-templates", permission: "read:containers:images" },
   { icon: Users, label: "Clientes", href: "/clients", permission: "read:clients" },
   { icon: Users, label: "Usuários", href: "/users", permission: "read:users:all" },
   { icon: Settings, label: "Configuração", href: "/settings", permission: "read:settings" },
