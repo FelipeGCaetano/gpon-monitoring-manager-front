@@ -40,7 +40,7 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function InstancesPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
 
   // --- Estados dos Modais ---
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null)
@@ -85,8 +85,13 @@ export default function InstancesPage() {
   }
 
   useEffect(() => {
-    fetchPageData()
-  }, [])
+    if (isAuthLoading) {
+      return;
+    }
+    if (!isAuthLoading && isLoading) {
+      fetchPageData();
+    }
+  }, [isAuthLoading, userCan, isLoading])
 
   // Agrupa as instâncias por cliente
   useEffect(() => {

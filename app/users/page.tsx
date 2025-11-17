@@ -66,7 +66,7 @@ const defaultFormData: UserFormData = {
 }
 
 export default function UsersPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
 
   // --- Estados ---
   const [users, setUsers] = useState<User[]>([])
@@ -103,8 +103,13 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
-    fetchUsersAndRoles()
-  }, [])
+    if (isAuthLoading) {
+      return;
+    }
+    if (!isAuthLoading && isLoading) {
+      fetchUsersAndRoles();
+    }
+  }, [isAuthLoading, userCan, isLoading])
 
   // --- Filtros e helpers ---
   const filteredUsers = users.filter(

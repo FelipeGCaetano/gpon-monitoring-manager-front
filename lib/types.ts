@@ -128,3 +128,18 @@ export interface Container {
   networkMapping?: NetworkMapping
   createdAt: Date
 }
+
+export interface ProjectService {
+  id: string
+  imageTemplateId: string
+  imageTemplate: ImageTemplate
+  role: "MAIN" | "DEPENDENCY"
+  startOrder: number
+}
+
+export interface Project {
+  id: string
+  name: string
+  description: string
+  services: ProjectService[]
+}

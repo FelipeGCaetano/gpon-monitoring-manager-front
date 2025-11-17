@@ -23,7 +23,7 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function ContainersPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
 
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -52,8 +52,13 @@ export default function ContainersPage() {
   }
 
   useEffect(() => {
-    fetchContainers()
-  }, [])
+    if (isAuthLoading) {
+      return;
+    }
+    if (!isAuthLoading && isLoading) {
+      fetchContainers();
+    }
+  }, [isAuthLoading, userCan, isLoading])
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
@@ -203,34 +208,34 @@ export default function ContainersPage() {
                               </Button>
                             )}
                             {userCan("containers:restart") && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleRestartContainer(container.id)}
-                              disabled={!!isSubmitting}
-                            >
-                              {isSubmitting === container.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="w-4 h-4" />
-                              )}
-                            </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleRestartContainer(container.id)}
+                                disabled={!!isSubmitting}
+                              >
+                                {isSubmitting === container.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="w-4 h-4" />
+                                )}
+                              </Button>
                             )}
                             {userCan("delete:container") && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteContainer(container.id)}
-                              disabled={!!isSubmitting}
-                            >
-                              {isSubmitting === container.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </Button>
-                            )}                          
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteContainer(container.id)}
+                                disabled={!!isSubmitting}
+                              >
+                                {isSubmitting === container.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -243,12 +248,12 @@ export default function ContainersPage() {
         </Card>
 
         {userCan("create:containers") && (
-        <div className="flex justify-end mt-6">
-          <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Novo Container
-          </Button>
-        </div>      
+          <div className="flex justify-end mt-6">
+            <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Novo Container
+            </Button>
+          </div>
         )}
       </div>
 

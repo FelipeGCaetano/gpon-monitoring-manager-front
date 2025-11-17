@@ -31,7 +31,7 @@ const formatPhone = (value: string) => {
 }
 
 export default function ClientsPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
 
   // --- Estados dos Modais ---
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false)
@@ -61,8 +61,13 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    fetchClients()
-  }, [])
+    if (isAuthLoading) {
+      return;
+    }
+    if (!isAuthLoading && isLoadingClients) {
+      fetchClients();
+    }
+  }, [isAuthLoading, userCan, isLoadingClients])
 
   // --- Ações ---
   const handleDeleteClient = async (clientId: string) => {
@@ -135,19 +140,19 @@ export default function ClientsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           {userCan("update:client") && (
-                          <Button size="sm" variant="ghost" onClick={() => handleEditClient(client)}>
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleEditClient(client)}>
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
                           )}
                           {userCan("delete:client") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClient(client.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClient(client.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>
@@ -162,12 +167,12 @@ export default function ClientsPage() {
 
       {/* Header Button */}
       <div className="flex justify-end mt-6">
-      {userCan("create:clients") && (
-        <Button className="gap-2" onClick={() => setIsCreateClientOpen(true)}>
-          <Plus className="w-4 h-4" />
-          Adicionar Cliente
-        </Button>
-      )} 
+        {userCan("create:clients") && (
+          <Button className="gap-2" onClick={() => setIsCreateClientOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Adicionar Cliente
+          </Button>
+        )}
       </div>
 
       {/* Modais */}

@@ -2,12 +2,13 @@
 
 import { useAuth } from "@/app/auth-context"
 import { cn } from "@/lib/utils"
-import { Component, Container, HardDrive, Layers, LayoutDashboard, Settings, Users } from "lucide-react"
+import { Blocks, Component, Container, HardDrive, Layers, LayoutDashboard, Settings, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const navigationItems = [
-  { icon: LayoutDashboard, label: "Painel", href: "/", permission: "read:dashboard" }, // Assumindo que o painel tem uma permissão
+  { icon: Blocks, label: "Projetos", href: "/projects", permission: "read:projects" },
+  { icon: LayoutDashboard, label: "Painel", href: "/", permission: "read:dashboard" },
   { icon: Container, label: "Containers", href: "/containers", permission: "read:containers" },
   { icon: Layers, label: "Módulos", href: "/modules", permission: "read:modules" },
   { icon: Component, label: "Instâncias", href: "/instances", permission: "read:instances" },

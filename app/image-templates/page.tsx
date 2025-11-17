@@ -16,7 +16,7 @@ import { toast } from "sonner"
 import { useAuth } from "../auth-context"
 
 export default function ImageTemplatesPage() {
-    const { userCan } = useAuth()
+    const { userCan, isAuthLoading } = useAuth()
 
     // --- Estados ---
     const [templates, setTemplates] = useState<ImageTemplate[]>([])
@@ -45,8 +45,13 @@ export default function ImageTemplatesPage() {
     }
 
     useEffect(() => {
-        fetchTemplates()
-    }, [])
+        if (isAuthLoading) {
+            return;
+        }
+        if (!isAuthLoading && isLoading) {
+            fetchTemplates();
+        }
+    }, [isAuthLoading, userCan, isLoading])
 
     // --- Handlers ---
     const handleEdit = (template: ImageTemplate) => {

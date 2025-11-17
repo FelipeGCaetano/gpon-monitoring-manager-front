@@ -317,4 +317,32 @@ export const apiClient = {
       method: "DELETE",
     })
   },
+
+  async getProjects() {
+    return fetchWithAuth("/projects")
+  },
+
+  async getProjectById(id: string) {
+    return fetchWithAuth(`/projects/${id}`)
+  },
+
+  async createProject(project: any) {
+    return fetchWithAuth("/projects", {
+      method: "POST",
+      body: JSON.stringify(project),
+    })
+  },
+
+  async updateProject(id: string, project: any) {
+    return fetchWithAuth(`/projects/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(project),
+    })
+  },
+
+  async deleteProject(id: string) {
+    return fetchWithAuth(`/projects/${id}`, {
+      method: "DELETE",
+    })
+  },
 }

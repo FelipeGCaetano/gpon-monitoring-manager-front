@@ -20,7 +20,7 @@ interface EnvFormRow extends EnvDefinition {
 }
 
 export default function EnvDefinitionsPage() {
-    const { userCan } = useAuth()
+    const { userCan, isAuthLoading } = useAuth()
     const router = useRouter()
     const params = useParams() // Hook para ler o [id] da URL
     const templateId = params.id as string
@@ -59,8 +59,13 @@ export default function EnvDefinitionsPage() {
     }
 
     useEffect(() => {
-        fetchEnvDefinitions()
-    }, [])
+        if (isAuthLoading) {
+            return;
+        }
+        if (!isAuthLoading && isLoading) {
+            fetchEnvDefinitions();
+        }
+    }, [isAuthLoading, userCan, isLoading])
 
     // --- Handlers ---
     const handleAddRow = () => {

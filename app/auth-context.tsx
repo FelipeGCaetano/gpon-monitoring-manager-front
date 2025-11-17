@@ -14,7 +14,7 @@ type PermissionsSet = Set<string>
 
 interface AuthContextType {
   user: User | null
-  isLoading: boolean
+  isAuthLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   isAuthenticated: boolean
@@ -39,13 +39,13 @@ const loadPermissions = (): PermissionsSet => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [permissions, setPermissions] = useState<PermissionsSet>(new Set())
-  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
   // Verificar autenticação ao montar o componente
   useEffect(() => {
-    setIsLoading(true)
+    setIsAuthLoading(true)
     const storedUser = localStorage.getItem("user")
     if (storedUser) {
       try {
@@ -56,22 +56,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.clear() // Limpa tudo se estiver corrompido
       }
     }
-    setIsLoading(false)
+    setIsAuthLoading(false)
   }, [])
 
   // Redirecionar para login se não autenticado
   useEffect(() => {
     const publicRoutes = ["/login", "/forgot-password"]
 
-    if (!isLoading && !user && !publicRoutes.includes(pathname)) {
+    if (!isAuthLoading && !user && !publicRoutes.includes(pathname)) {
       router.push("/login")
     }
-  }, [isLoading, user, pathname, router])
+  }, [isAuthLoading, user, pathname, router])
 
 
   // --- FUNÇÃO DE LOGIN ATUALIZADA ---
   const login = async (email: string, password: string) => {
-    setIsLoading(true)
+    setIsAuthLoading(true)
     try {
       // 1. Chamar a API REAL de login
       const response = await apiClient.login({ email, password })
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(error.message || "Email ou senha inválidos")
       throw error
     } finally {
-      setIsLoading(false)
+      setIsAuthLoading(false)
     }
   }
 
@@ -114,12 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // --- NOSSO NOVO HOOK DE VERIFICAÇÃO ---
   const userCan = (permission: string): boolean => {
-    if (isLoading) return false // Não permite nada enquanto carrega
+    if (isAuthLoading) return false // Não permite nada enquanto carrega
     return permissions.has(permission)
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user, userCan }}>
+    <AuthContext.Provider value={{ user, isAuthLoading, login, logout, isAuthenticated: !!user, userCan }}>
       {children}
     </AuthContext.Provider>
   )

@@ -16,7 +16,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "../auth-context"
 
 export default function ModulesPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
 
   // --- Estados dos Modais ---
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
@@ -66,10 +66,15 @@ export default function ModulesPage() {
     }
   }
 
-  useEffect(() => {
-    fetchModules()
-    fetchInstances()
-  }, [])
+    useEffect(() => {
+        if (isAuthLoading) {
+            return;
+        }
+        if (!isAuthLoading && isLoadingModules && isLoadingAssignments) {
+            fetchModules();
+            fetchInstances()
+        }
+    }, [isAuthLoading, userCan, isLoadingModules, isLoadingAssignments])
 
   // --- Ações ---
   const handleDeleteModule = async (moduleId: string) => {

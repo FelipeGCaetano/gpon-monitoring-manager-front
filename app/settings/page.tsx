@@ -55,7 +55,7 @@ const formatDate = (dateString: Date | string) => {
 }
 
 export default function SettingsPage() {
-  const { userCan } = useAuth()
+  const { userCan, isAuthLoading } = useAuth()
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -96,11 +96,14 @@ export default function SettingsPage() {
     }
   }
 
-  // --- CORREÇÃO: useEffect ATUALIZADO ---
   useEffect(() => {
-    fetchSettings()
-  }, [])
-  // --- FIM DA CORREÇÃO ---
+    if (isAuthLoading) {
+      return;
+    }
+    if (!isAuthLoading && isLoading) {
+      fetchSettings();
+    }
+  }, [isAuthLoading, userCan, isLoading])
 
   // --- Handlers ---
   const handleGeneralChange = (e: React.ChangeEvent<HTMLInputElement>) => {
