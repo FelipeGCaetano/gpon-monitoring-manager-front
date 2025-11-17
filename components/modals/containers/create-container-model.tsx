@@ -12,26 +12,28 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
-import { Loader2, Lock, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
-// Importar os tipos do seu arquivo lib/types
+// 1. Adicionei Copy, Globe e Network aos imports
+import { Copy, Globe, Loader2, Lock, Network, Trash2 } from "lucide-react"
+// 2. Adicionei useMemo aos imports
 import type { EnvDefinition, GponInstance, ImageTemplate } from "@/lib/types"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
-// ... (interfaces, simpleUUID, randomUUID, valores padrão) ...
-// --- Tipos para os campos do formulário (Atualizados com isGlobal) ---
+// --- Tipos para os campos do formulário ---
 interface FormEnvVar {
     id: string;
     key: string;
     value: string;
     isRequired: boolean;
-    isGlobal: boolean; // <-- NOVO: Indica se é uma var global
+    isGlobal: boolean;
 }
+
 interface FormPortMap {
     id: string;
     privatePort: string;
     publicPort: string;
 }
+
 interface FormVolumeMap {
     id: string;
     name: string;
@@ -41,12 +43,11 @@ interface FormNetworkConfig {
     name: string
     ip: string
 }
-// ------------------------------------
 
 interface CreateContainerModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onContainerCreated: () => void // Callback para recarregar a lista
+    onContainerCreated: () => void
 }
 
 function simpleUUID() {
@@ -62,68 +63,54 @@ const randomUUID = (): string => {
     return simpleUUID();
 }
 
-// --- Valores Padrão do Formulário (Convertidos para Funções) ---
 const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
 const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
-// --- CORREÇÃO AQUI (1/3) ---
-const defaultNetwork: FormNetworkConfig = { name: "", ip: "" } // Removido "bridge"
-// -----------------------------------------------------------
-
+const defaultNetwork: FormNetworkConfig = { name: "", ip: "" }
 
 export function CreateContainerModal({
     open,
     onOpenChange,
     onContainerCreated,
 }: CreateContainerModalProps) {
-    // ... (estados) ...
-    // --- Estados de Loading e Dados ---
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isLoadingData, setIsLoadingData] = useState(true)
 
-    // --- Estados para Dropdowns ---
     const [imageTemplates, setImageTemplates] = useState<ImageTemplate[]>([])
     const [gponInstances, setGponInstances] = useState<GponInstance[]>([])
-    // 2. Novo estado para Variáveis Globais
     const [globalEnvs, setGlobalEnvs] = useState<{ key: string, value: string }[]>([])
 
-    // --- Estados do Formulário (Atualizados para usar funções) ---
     const [name, setName] = useState("")
     const [selectedImage, setSelectedImage] = useState("")
     const [selectedInstance, setSelectedInstance] = useState("")
-    const [envVars, setEnvVars] = useState<FormEnvVar[]>([]) // Começa vazio
+    const [envVars, setEnvVars] = useState<FormEnvVar[]>([])
     const [ports, setPorts] = useState<FormPortMap[]>([createDefaultPort()])
     const [volumes, setVolumes] = useState<FormVolumeMap[]>([createDefaultVolume()])
     const [network, setNetwork] = useState<FormNetworkConfig>(defaultNetwork)
 
-
-    // ... (resetForm, useEffect[open]) ...
-    // --- Função para resetar o formulário ---
     const resetForm = () => {
         setName("")
         setSelectedImage("")
         setSelectedInstance("")
-        setEnvVars([]) // Reseta para vazio
+        setEnvVars([])
         setPorts([createDefaultPort()])
         setVolumes([createDefaultVolume()])
         setNetwork(defaultNetwork)
         setIsSubmitting(false)
     }
 
-    // --- 3. Carrega dados (incluindo Variáveis Globais) ---
     useEffect(() => {
         if (open) {
             const fetchData = async () => {
                 setIsLoadingData(true)
                 try {
-                    // Adicionado apiClient.getSettings()
                     const [templatesData, instancesData, settingsData] = await Promise.all([
                         apiClient.getImageTemplates(),
                         apiClient.getInstances(),
-                        apiClient.getSettings(), // <-- Busca as configurações globais
+                        apiClient.getSettings(),
                     ])
                     setImageTemplates(templatesData || [])
                     setGponInstances(instancesData || [])
-                    setGlobalEnvs(settingsData?.globalEnv || []) // <-- Salva as envs globais
+                    setGlobalEnvs(settingsData?.globalEnv || [])
                 } catch (error) {
                     toast.error("Falha ao carregar dados.")
                 } finally {
@@ -136,37 +123,29 @@ export function CreateContainerModal({
         }
     }, [open])
 
-
-    // --- 4. Popula EnvVars E VERIFICA VARS GLOBAIS ---
     useEffect(() => {
         if (!selectedImage) {
             setEnvVars([])
             return
         }
 
-        // Cria um Map de lookup para as variáveis globais
         const globalEnvMap = new Map(globalEnvs.map(env => [env.key, env.value]));
-
         const template = imageTemplates.find(t => t.id === selectedImage)
+
         if (template && template.envDefinitions) {
             const newEnvs = template.envDefinitions.map((def: EnvDefinition) => {
                 const isGlobal = globalEnvMap.has(def.key);
-
-                // --- INÍCIO DA CORREÇÃO (1/2) ---
-                let value = ""; // Valor padrão é vazio
+                let value = "";
                 if (isGlobal) {
-                    // 1. Se for uma variável global, usa o valor global
                     value = globalEnvMap.get(def.key)!;
                 } else if (def.key === "CONTAINER_NAME") {
-                    // 2. Se for CONTAINER_NAME (e não for global), usa o 'name' do formulário
                     value = name;
                 }
-                // --- FIM DA CORREÇÃO ---
 
                 return {
                     id: randomUUID(),
                     key: def.key,
-                    value: value, // Atribui o valor com a nova lógica
+                    value: value,
                     isRequired: def.isRequired,
                     isGlobal: isGlobal,
                 }
@@ -175,22 +154,14 @@ export function CreateContainerModal({
         } else {
             setEnvVars([])
         }
-        // --- CORREÇÃO (2/2): Adiciona 'name' ao array de dependências ---
     }, [selectedImage, imageTemplates, globalEnvs, name])
-    // --- FIM DA ATUALIZAÇÃO ---
 
-
-    // --- Handlers para campos dinâmicos (Atualizados) ---
-    // ... (handleEnvChange, handlePortChange, addPort, removePort, handleVolumeChange, addVolume, removeVolume) ...
-    // Variáveis de Ambiente (Simplificado)
     const handleEnvChange = (id: string, value: string) => {
         setEnvVars(currentEnvs =>
             currentEnvs.map(env => (env.id === id ? { ...env, value } : env))
         );
     }
-    // addEnvVar e removeEnvVar removidos
 
-    // Portas (Permanece igual)
     const handlePortChange = (id: string, field: "privatePort" | "publicPort", value: string) => {
         setPorts(currentPorts =>
             currentPorts.map(port => (port.id === id ? { ...port, [field]: value } : port))
@@ -203,7 +174,6 @@ export function CreateContainerModal({
         }
     }
 
-    // Volumes (Permanece igual)
     const handleVolumeChange = (id: string, field: "name" | "containerPath", value: string) => {
         setVolumes(currentVolumes =>
             currentVolumes.map(vol => (vol.id === id ? { ...vol, [field]: value } : vol))
@@ -216,14 +186,91 @@ export function CreateContainerModal({
         }
     }
 
+    // --- 3. Lógica de Visualização de URL (Inserida Aqui) ---
+    const connectionPreview = useMemo(() => {
+        const template = imageTemplates.find(t => t.id === selectedImage);
+        if (!template) return null;
 
-    // --- Handler de Submissão ---
-    // ... (handleSubmit, renderDynamicInputs) ...
+        const img = template.image.toLowerCase();
+        const getVal = (keyPart: string) => {
+            const found = envVars.find(e => e.key.includes(keyPart) && e.value);
+            return found ? found.value : "";
+        }
+
+        const getPortsConfig = (defaultPort: number) => {
+            const mapped = ports.find(p => Number(p.privatePort) === defaultPort);
+            return {
+                public: mapped && mapped.publicPort ? mapped.publicPort : defaultPort,
+                private: defaultPort
+            };
+        }
+
+        const publicHost = network.ip || "0.0.0.0";
+        const privateHost = name || "container-name";
+
+        let publicUrl = "";
+        let privateUrl = "";
+        let type = "";
+        let protocol = "";
+        let user = "";
+        let pass = "";
+        let dbPath = "";
+        let portConfig = { public: 0, private: 0 };
+
+        if (img.includes("postgres")) {
+            type = "PostgreSQL";
+            protocol = "postgresql";
+            user = getVal("_USER") || "postgres";
+            pass = getVal("_PASSWORD") || "senha";
+            const db = getVal("_DB") || "postgres";
+            dbPath = `/${db}`;
+            portConfig = getPortsConfig(5432) as any;
+        }
+        else if (img.includes("mysql") || img.includes("mariadb")) {
+            type = "MySQL/MariaDB";
+            protocol = "mysql";
+            user = getVal("_USER") || "root";
+            pass = getVal("_PASSWORD") || "senha";
+            const db = getVal("_DATABASE") || "mydb";
+            dbPath = `/${db}`;
+            portConfig = getPortsConfig(3306) as any;
+        }
+        else if (img.includes("mongo")) {
+            type = "MongoDB";
+            protocol = "mongodb";
+            user = getVal("USERNAME") || "root";
+            pass = getVal("PASSWORD") || "senha";
+            portConfig = getPortsConfig(27017) as any;
+        }
+        else if (img.includes("redis")) {
+            type = "Redis";
+            protocol = "redis";
+            pass = getVal("PASSWORD") || getVal("REQUIREPASS");
+            portConfig = getPortsConfig(6379) as any;
+        }
+
+        if (!type) return null;
+
+        let credentials = "";
+        if (user && pass) credentials = `${user}:${pass}@`;
+        else if (pass) credentials = `:${pass}@`;
+
+        publicUrl = `${protocol}://${credentials}${publicHost}:${portConfig.public}${dbPath}`;
+        privateUrl = `${protocol}://${credentials}${privateHost}:${portConfig.private}${dbPath}`;
+
+        return { type, publicUrl, privateUrl };
+    }, [selectedImage, imageTemplates, envVars, ports, network.ip, name]);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success("Copiado!");
+    }
+    // -------------------------------------------------------
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsSubmitting(true)
 
-        // Filtra envs que são obrigatórias mas não foram preenchidas (e não são globais)
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && !env.value)
         if (missingRequiredEnvs.length > 0) {
             alert(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
@@ -231,8 +278,7 @@ export function CreateContainerModal({
             return
         }
 
-        // Filtra campos vazios e converte portas para números
-        const finalEnvVars = envVars.filter((env) => env.key).map(({ key, value }) => ({ key, value })) // Envia mesmo se o valor for "" (se não for obrigatório)
+        const finalEnvVars = envVars.filter((env) => env.key).map(({ key, value }) => ({ key, value }))
         const finalPorts = ports
             .filter((p) => p.privatePort && p.publicPort)
             .map((p) => ({
@@ -241,27 +287,22 @@ export function CreateContainerModal({
             }))
         const finalVolumes = volumes.filter((v) => v.name && v.containerPath).map(({ name, containerPath }) => ({ name, containerPath }))
 
-        // --- CORREÇÃO AQUI ---
-        // Buscar o nome da imagem a partir do ID selecionado
         const selectedTemplate = imageTemplates.find(t => t.id === selectedImage);
         if (!selectedTemplate) {
             alert("Template de imagem selecionado não encontrado. Recarregue a página.");
             setIsSubmitting(false);
             return;
         }
-        const imageName = selectedTemplate.image; // Este é o nome da imagem (ex: "nmultifibra/gpon-monitoring:latest")
-        // --- FIM DA CORREÇÃO ---
+        const imageName = selectedTemplate.image;
 
         try {
             const payload = {
                 name,
-                image: imageName, // <-- CORRIGIDO: Agora envia o nome da imagem, não o ID
+                image: imageName,
                 instanceId: selectedInstance,
                 envVariables: finalEnvVars.length > 0 ? finalEnvVars : undefined,
                 ports: finalPorts.length > 0 ? finalPorts : undefined,
                 volumes: finalVolumes.length > 0 ? finalVolumes : undefined,
-                // --- CORREÇÃO AQUI (2/3) ---
-                // Verifica se o nome da rede não está vazio antes de enviar
                 network: network.name.trim() ? { ...network, ip: network.ip || undefined } : undefined,
             }
 
@@ -276,7 +317,6 @@ export function CreateContainerModal({
         }
     }
 
-    // Helper para renderizar linhas dinâmicas (Portas e Volumes)
     const renderDynamicInputs = (
         items: (FormPortMap | FormVolumeMap)[],
         onChange: (id: string, field: any, value: string) => void,
@@ -309,13 +349,10 @@ export function CreateContainerModal({
             </div>
         ))
     }
-    // -----------------------------------------------------------------
-
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-                {/* ... (Header do Modal) ... */}
                 <DialogHeader>
                     <DialogTitle>Criar Novo Container</DialogTitle>
                     <DialogDescription>
@@ -331,7 +368,6 @@ export function CreateContainerModal({
                     <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
                         <div className="overflow-y-auto px-1 py-4">
                             <Tabs defaultValue="general" className="space-y-4">
-                                {/* ... (TabsList) ... */}
                                 <TabsList className="grid grid-cols-5 w-full">
                                     <TabsTrigger value="general">Geral</TabsTrigger>
                                     <TabsTrigger value="environment">Ambiente</TabsTrigger>
@@ -340,7 +376,6 @@ export function CreateContainerModal({
                                     <TabsTrigger value="network">Rede</TabsTrigger>
                                 </TabsList>
 
-                                {/* Aba Geral */}
                                 <TabsContent value="general" className="space-y-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">Nome do Container</label>
@@ -353,7 +388,6 @@ export function CreateContainerModal({
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        {/* ... (Select Template de Imagem) ... */}
                                         <label className="text-sm font-medium">Template da Imagem</label>
                                         <Select
                                             value={selectedImage}
@@ -374,7 +408,6 @@ export function CreateContainerModal({
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        {/* ... (Select Instância GPON) ... */}
                                         <label className="text-sm font-medium">Instância GPON</label>
                                         <Select
                                             value={selectedInstance}
@@ -396,41 +429,79 @@ export function CreateContainerModal({
                                     </div>
                                 </TabsContent>
 
-                                {/* Aba Ambiente (Atualizada) */}
                                 <TabsContent value="environment" className="space-y-4">
                                     {!selectedImage ? (
                                         <p className="text-sm text-muted-foreground text-center py-4">
                                             Selecione um Template de Imagem na aba 'Geral' para ver as variáveis de ambiente.
                                         </p>
-                                    ) : envVars.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground text-center py-4">
-                                            Este template de imagem não possui variáveis de ambiente predefinidas.
-                                        </p>
                                     ) : (
-                                        envVars.map((env) => (
-                                            <div key={env.id} className="grid grid-cols-2 gap-3 items-center">
-                                                <div className="space-y-1">
-                                                    <label htmlFor={env.id} className="flex items-center gap-2 text-sm font-mono text-muted-foreground">
-                                                        {env.isGlobal && <Lock className="w-3 h-3" />}
-                                                        {env.key} {env.isRequired && !env.isGlobal && <span className="text-destructive">*</span>}
-                                                    </label>
+                                        <>
+                                            {/* 4. Interface de Visualização (Inserida Aqui) */}
+                                            {connectionPreview && (
+                                                <div className="grid gap-3 mb-4">
+                                                    <div className="bg-muted/30 border rounded-md p-3">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                                                                <Globe className="w-3.5 h-3.5" />
+                                                                <span className="text-xs font-bold uppercase">Acesso Público</span>
+                                                            </div>
+                                                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(connectionPreview.publicUrl)}>
+                                                                <Copy className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                        <code className="block w-full bg-background p-2 rounded border text-xs font-mono break-all text-muted-foreground">
+                                                            {connectionPreview.publicUrl}
+                                                        </code>
+                                                    </div>
+
+                                                    <div className="bg-muted/30 border rounded-md p-3">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                                                <Network className="w-3.5 h-3.5" />
+                                                                <span className="text-xs font-bold uppercase">Acesso Privado (Rede Interna)</span>
+                                                            </div>
+                                                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(connectionPreview.privateUrl)}>
+                                                                <Copy className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                        <code className="block w-full bg-background p-2 rounded border text-xs font-mono break-all text-muted-foreground">
+                                                            {connectionPreview.privateUrl}
+                                                        </code>
+                                                    </div>
                                                 </div>
-                                                <Input
-                                                    id={env.id}
-                                                    type="text"
-                                                    placeholder={env.isGlobal ? "Valor global (não editável)" : "Valor"}
-                                                    value={env.value}
-                                                    onChange={(e) => handleEnvChange(env.id, e.target.value)}
-                                                    disabled={isSubmitting || env.isGlobal || env.key === "CONTAINER_NAME"}
-                                                    required={env.isRequired && !env.isGlobal}
-                                                    className="flex-1 read-only:bg-secondary/50 read-only:opacity-70"
-                                                />
-                                            </div>
-                                        ))
+                                            )}
+                                            {/* -------------------------------------------- */}
+
+                                            {envVars.length === 0 ? (
+                                                <p className="text-sm text-muted-foreground text-center py-4">
+                                                    Este template de imagem não possui variáveis de ambiente predefinidas.
+                                                </p>
+                                            ) : (
+                                                envVars.map((env) => (
+                                                    <div key={env.id} className="grid grid-cols-2 gap-3 items-center">
+                                                        <div className="space-y-1">
+                                                            <label htmlFor={env.id} className="flex items-center gap-2 text-sm font-mono text-muted-foreground">
+                                                                {env.isGlobal && <Lock className="w-3 h-3" />}
+                                                                {env.key} {env.isRequired && !env.isGlobal && <span className="text-destructive">*</span>}
+                                                            </label>
+                                                        </div>
+                                                        <Input
+                                                            id={env.id}
+                                                            type="text"
+                                                            placeholder={env.isGlobal ? "Valor global (não editável)" : "Valor"}
+                                                            value={env.value}
+                                                            onChange={(e) => handleEnvChange(env.id, e.target.value)}
+                                                            disabled={isSubmitting || env.isGlobal || env.key === "CONTAINER_NAME"}
+                                                            required={env.isRequired && !env.isGlobal}
+                                                            className="flex-1 read-only:bg-secondary/50 read-only:opacity-70"
+                                                        />
+                                                    </div>
+                                                ))
+                                            )}
+                                        </>
                                     )}
                                 </TabsContent>
 
-                                {/* Aba Portas */}
                                 <TabsContent value="ports" className="space-y-3">
                                     {renderDynamicInputs(
                                         ports,
@@ -446,7 +517,6 @@ export function CreateContainerModal({
                                     </Button>
                                 </TabsContent>
 
-                                {/* Aba Volumes */}
                                 <TabsContent value="volumes" className="space-y-3">
                                     {renderDynamicInputs(
                                         volumes,
@@ -462,9 +532,7 @@ export function CreateContainerModal({
                                     </Button>
                                 </TabsContent>
 
-                                {/* Aba Rede */}
                                 <TabsContent value="network" className="space-y-4">
-                                    {/* ... (Inputs de Rede) ... */}
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">Nome da Rede (Opcional)</label>
                                         <Input
@@ -487,7 +555,6 @@ export function CreateContainerModal({
                             </Tabs>
                         </div>
 
-                        {/* Botão de Submissão */}
                         <div className="mt-auto pt-6 border-t border-border">
                             <Button type="submit" className="w-full" disabled={isSubmitting || isLoadingData || !name || !selectedImage || !selectedInstance}>
                                 {isSubmitting ? (

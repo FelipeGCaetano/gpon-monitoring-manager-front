@@ -1,22 +1,11 @@
 "use client"
 
 import { ProtectedLayout } from "@/components/layout/protected-layout"
-import { CreateInstanceModal } from "@/components/modals/instances/create-instance-modal"
-import { EditInstanceModal } from "@/components/modals/instances/edit-instance-modal"
-import { GponInstanceDetailsModal } from "@/components/modals/instances/gpon-instance-details-modal"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { TableCell, TableRow } from "@/components/ui/table"
-import { apiClient } from "@/lib/api-client"
-import type { Client, GponInstance as Instance, Module } from "@/lib/types"
 import {
+  Blocks,
   Box,
   Edit2,
   Eye,
@@ -26,6 +15,19 @@ import {
   Trash2
 } from "lucide-react"
 import { useEffect, useState } from "react"
+// TableCell/Row removidos pois não são mais usados
+import { CreateInstanceModal } from "@/components/modals/instances/create-instance-modal"
+import { EditInstanceModal } from "@/components/modals/instances/edit-instance-modal"
+import { GponInstanceDetailsModal } from "@/components/modals/instances/gpon-instance-details-modal"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { apiClient } from "@/lib/api-client"
+// 2. Importar o tipo Project
+import type { Client, GponInstance as Instance, Module, Project } from "@/lib/types"
 import { toast } from "sonner"
 import { useAuth } from "../auth-context"
 
@@ -38,6 +40,34 @@ const formatDate = (dateString: Date | string) => {
     year: "numeric",
   })
 }
+
+// Funções de Cores
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "RUNNING": return "bg-chart-4"
+    case "PAUSED": return "bg-chart-2"
+    default: return "bg-muted"
+  }
+}
+const getTypeColor = (type: string) => {
+  switch (type) {
+    case "PRODUCTION": return "bg-chart-4"
+    case "BACKUP": return "bg-chart-2"
+    case "TESTING": return "bg-chart-3"
+    case "MONITORING": return "bg-accent"
+    default: return "bg-secondary"
+  }
+}
+const getTypeName = (type: string) => {
+  switch (type) {
+    case "PRODUCTION": return "Produção"
+    case "BACKUP": return "Backup"
+    case "TESTING": return "Testes"
+    case "MONITORING": return "Monitoramento"
+    default: return type
+  }
+}
+// --- Fim das Funções de Cor ---
 
 export default function InstancesPage() {
   const { userCan, isAuthLoading } = useAuth()
@@ -53,28 +83,32 @@ export default function InstancesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [instances, setInstances] = useState<Instance[]>([])
   const [modules, setModules] = useState<Module[]>([])
+  const [projects, setProjects] = useState<Project[]>([]) // 3. Adicionar estado de Projetos
   const [isLoading, setIsLoading] = useState(true)
   const [groupedInstances, setGroupedInstances] = useState<Record<string, Instance[]>>({})
-  const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // 2. Adicionado estado de submitting
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null)
 
   // --- Funções de busca de dados ---
   const fetchPageData = async () => {
     setIsLoading(true)
     try {
-      // Otimização: Só busca dados que o usuário pode ver
       if (userCan("read:instances")) {
-        const [instancesData, modulesData, clientsData] = await Promise.all([
+        // 4. Adicionar apiClient.getProjects()
+        const [instancesData, modulesData, clientsData, projectsData] = await Promise.all([
           apiClient.getInstances(),
           userCan("read:modules") ? apiClient.getModules() : Promise.resolve([]),
           userCan("read:clients") ? apiClient.getClients() : Promise.resolve([]),
+          userCan("read:projects") ? apiClient.getProjects() : Promise.resolve([]), // Busca projetos
         ])
         setInstances(instancesData || [])
         setModules(modulesData || [])
         setClients(clientsData || [])
+        setProjects(projectsData || []) // Salva projetos
       } else {
         setInstances([])
         setModules([])
         setClients([])
+        setProjects([])
       }
     } catch (error) {
       console.error("Falha ao buscar dados da página:", error)
@@ -84,6 +118,7 @@ export default function InstancesPage() {
     }
   }
 
+  // useEffect para buscar dados (corrigido)
   useEffect(() => {
     if (isAuthLoading) {
       return;
@@ -93,16 +128,17 @@ export default function InstancesPage() {
     }
   }, [isAuthLoading, userCan, isLoading])
 
-  // Agrupa as instâncias por cliente
+  // useEffect para agrupar instâncias (sem alteração)
   useEffect(() => {
     if (isLoading || instances.length === 0) {
       setGroupedInstances({})
       return
     }
-
     const groups = instances.reduce((acc, instance) => {
       const clientName = instance.client?.name || "Cliente Desconhecido"
-      if (!acc[clientName]) acc[clientName] = []
+      if (!acc[clientName]) {
+        acc[clientName] = []
+      }
       acc[clientName].push(instance)
       return acc
     }, {} as Record<string, Instance[]>)
@@ -126,25 +162,17 @@ export default function InstancesPage() {
       return
     }
 
-    setIsSubmitting(instanceId) // Inicia o loading no botão específico
+    setIsSubmitting(instanceId)
     try {
       await apiClient.deleteInstance(instanceId)
       toast.success("Instância deletada com sucesso!")
-      await fetchPageData() // Recarrega a lista de todas as instâncias
+      await fetchPageData()
     } catch (error) {
       toast.error("Falha ao deletar instância.")
     } finally {
-      setIsSubmitting(null) // Para o loading
+      setIsSubmitting(null)
     }
   }
-
-  const LoadingRow = ({ cols }: { cols: number }) => (
-    <TableRow>
-      <TableCell colSpan={cols} className="h-24 text-center">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" />
-      </TableCell>
-    </TableRow>
-  )
 
   return (
     <ProtectedLayout
@@ -156,6 +184,12 @@ export default function InstancesPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
+        ) : !userCan("read:instances") ? (
+          <Card>
+            <CardContent className="p-10 text-center text-destructive">
+              Você não tem permissão para visualizar as instâncias.
+            </CardContent>
+          </Card>
         ) : Object.keys(groupedInstances).length === 0 ? (
           <Card>
             <CardContent className="p-10 text-center text-muted-foreground">
@@ -184,13 +218,10 @@ export default function InstancesPage() {
                         key={instance.id}
                         className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-4 border-b border-border last:border-b-0"
                       >
+                        {/* Coluna 1: Data e Nome */}
                         <div className="flex-1 min-w-[200px]">
-                          <p className="text-sm text-muted-foreground">
-                            Nome: {instance.name}
-                          </p>
-                        </div>
-                        {/* Coluna 1: Nome e Data */}
-                        <div className="flex-1 min-w-[200px]">
+                          {/* 5. Exibir Nome da Instância */}
+                          <p className="font-medium text-foreground">{instance.name}</p>
                           <p className="text-sm text-muted-foreground">
                             Criado em: {formatDate(instance.createdAt)}
                           </p>
@@ -198,6 +229,14 @@ export default function InstancesPage() {
 
                         {/* Coluna 2: Badges de Info */}
                         <div className="flex flex-wrap gap-2">
+                          {/* 6. Badge de Projeto Adicionada */}
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1.5"
+                          >
+                            <Blocks className="w-3 h-3 text-muted-foreground" />
+                            {instance.projectTemplate?.name || "Manual"}
+                          </Badge>
                           <Badge variant="secondary" className="flex items-center gap-1.5">
                             <Layers className="w-3 h-3" />
                             {instance.modules.length} Módulo(s)
@@ -208,13 +247,14 @@ export default function InstancesPage() {
                           </Badge>
                         </div>
 
-                        {/* Coluna 3: Ações */}
+                        {/* Coluna 3: Ações (com permissões) */}
                         <div className="flex items-center justify-end gap-2">
                           {userCan("read:instance") && (
                             <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => handleViewInstanceDetails(instance)}
+                              disabled={!!isSubmitting}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -224,6 +264,7 @@ export default function InstancesPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleEditInstance(instance)}
+                              disabled={!!isSubmitting}
                             >
                               <Edit2 className="w-4 h-4" />
                             </Button>
@@ -253,10 +294,9 @@ export default function InstancesPage() {
           </Accordion>
         )}
 
-        {/* Botão Criar Instância */}
         {userCan("create:instances") && (
           <div className="flex justify-end">
-            <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)}>
+            <Button className="gap-2" onClick={() => setCreateInstanceOpen(true)} disabled={isLoading}>
               <Plus className="w-4 h-4" />
               Criar Instância
             </Button>
@@ -278,8 +318,10 @@ export default function InstancesPage() {
         onOpenChange={setCreateInstanceOpen}
         clients={clients}
         modules={modules}
+        projects={projects} // 7. Passar projetos para o modal
         onInstanceCreated={async () => {
           await fetchPageData()
+          toast.success("Instância criada com sucesso!")
         }}
       />
 
@@ -289,8 +331,10 @@ export default function InstancesPage() {
         instanceId={editingInstanceId}
         clients={clients}
         modules={modules}
+        projects={projects} // 7. Passar projetos para o modal
         onInstanceUpdated={async () => {
           await fetchPageData()
+          toast.success("Instância atualizada com sucesso!")
         }}
       />
     </ProtectedLayout>

@@ -50,6 +50,8 @@ export interface GponInstance {
   id: string
   name: string
   clientId: string
+  projectTemplateId: string
+  projectTemplate: Project
   client: Client
   modules: Module[]
   containers: Container[]

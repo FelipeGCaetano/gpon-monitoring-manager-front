@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GponInstance as Instance } from "@/lib/types"; // Importando o tipo
+import { Blocks } from "lucide-react"; // 1. Importar Blocks
 import { useState } from "react"
 
 interface GponInstanceDetailsModalProps {
@@ -14,6 +15,7 @@ interface GponInstanceDetailsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
+// ... (helpers: formatDate, getStatusColor, getTypeColor, getTypeName) ...
 // Helper para formatar data
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return "N/A"
@@ -54,7 +56,7 @@ const getTypeName = (type: string) => {
 export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponInstanceDetailsModalProps) {
   const [activeTab, setActiveTab] = useState("overview")
 
-  if (!instance) return null // Não renderiza nada se a instância não estiver carregada
+  if (!instance) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,12 +64,11 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
         <DialogHeader>
           <DialogTitle>{instance?.name}</DialogTitle>
           <DialogDescription>
-            Detalhes da Instância
+            Detalhes da Instância - {instance?.name}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {/* Abas Atualizadas */}
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="containers">Containers</TabsTrigger>
@@ -82,12 +83,25 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Nome</span>
+                  <span className="text-muted-foreground">Nome da Instância</span>
                   <span className="font-medium">{instance?.name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Cliente</span>
                   <span className="font-medium">{instance?.client?.name}</span>
+                </div>
+                {/* 2. Adicionar linha do Projeto */}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Projeto</span>
+                  <span className="font-medium flex items-center gap-2">
+                    {instance.projectTemplate ? (
+                      <>
+                        <Blocks className="w-4 h-4" /> {instance.projectTemplate.name}
+                      </>
+                    ) : (
+                      "Configuração Manual"
+                    )}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Criado em</span>
@@ -95,8 +109,9 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                 </div>
               </CardContent>
             </Card>
-            {/* Card de Recursos (CPU/Memória) removido pois não há dados */}
           </TabsContent>
+
+          {/* ... (Abas 'containers' e 'modules' permanecem as mesmas) ... */}
 
           {/* Containers Tab (Nova) */}
           <TabsContent value="containers" className="space-y-4 mt-4">
