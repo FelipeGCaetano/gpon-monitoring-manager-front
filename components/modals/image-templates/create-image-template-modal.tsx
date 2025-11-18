@@ -21,14 +21,17 @@ interface CreateImageTemplateModalProps {
     onTemplateCreated: () => void
 }
 
+// 1. Define todos os valores opcionais como string vazia inicialmente
 const defaultForm = {
     name: "",
     image: "",
     command: "",
+    dataPath: "",
+    defaultPort: "", // Alterado de 0 para "" para ser opcional
     healthcheckTest: "",
-    healthcheckInterval: "30s",
-    healthcheckTimeout: "10s",
-    healthcheckRetries: 3,
+    healthcheckInterval: "", // Alterado de "30s" para ""
+    healthcheckTimeout: "",  // Alterado de "10s" para ""
+    healthcheckRetries: "",  // Alterado de 3 para ""
 }
 
 export function CreateImageTemplateModal({
@@ -39,11 +42,13 @@ export function CreateImageTemplateModal({
     const [formData, setFormData] = useState(defaultForm)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
+    // 2. Removemos a conversão forçada para Number aqui.
+    // Mantemos como string no estado para permitir que o campo fique vazio ("").
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
         setFormData(prev => ({
             ...prev,
-            [name]: name === 'healthcheckRetries' ? Number(value) : value,
+            [name]: value,
         }))
     }
 
@@ -51,20 +56,28 @@ export function CreateImageTemplateModal({
         e.preventDefault()
         setIsSubmitting(true)
         try {
-            // Prepara o payload, enviando 'null' para campos de healthcheck opcionais se vazios
-            const payload = {
+            // 3. Construção dinâmica do payload.
+            // Iniciamos apenas com os obrigatórios.
+            const payload: any = {
                 name: formData.name,
                 image: formData.image,
-                command: formData.command || null,
-                healthcheckTest: formData.healthcheckTest || null,
-                healthcheckInterval: formData.healthcheckInterval || null,
-                healthcheckTimeout: formData.healthcheckTimeout || null,
-                healthcheckRetries: formData.healthcheckRetries || null,
             }
+
+            // Adiciona propriedades opcionais SOMENTE se tiverem valor preenchido
+            if (formData.dataPath) payload.dataPath = formData.dataPath;
+            if (formData.command) payload.command = formData.command;
+            if (formData.healthcheckTest) payload.healthcheckTest = formData.healthcheckTest;
+            if (formData.healthcheckInterval) payload.healthcheckInterval = formData.healthcheckInterval;
+            if (formData.healthcheckTimeout) payload.healthcheckTimeout = formData.healthcheckTimeout;
+
+            // Para números, verificamos se existe E convertemos
+            if (formData.defaultPort) payload.defaultPort = Number(formData.defaultPort);
+            if (formData.healthcheckRetries) payload.healthcheckRetries = Number(formData.healthcheckRetries);
 
             await apiClient.createImageTemplate(payload)
             onTemplateCreated()
             onOpenChange(false)
+            setFormData(defaultForm) // Limpa o formulário ao fechar
         } catch (error) {
             console.error("Falha ao criar template:", error)
             toast.error("Falha ao criar template.")
@@ -115,6 +128,27 @@ export function CreateImageTemplateModal({
                                 />
                             </div>
                             <div className="space-y-2">
+                                <label className="text-sm font-medium">Porta padrão (Opcional)</label>
+                                <Input
+                                    name="defaultPort"
+                                    type="number" // Importante para UX
+                                    value={formData.defaultPort}
+                                    onChange={handleChange}
+                                    placeholder="Ex: 3306"
+                                    disabled={isSubmitting}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Caminho de dados (Opcional)</label>
+                                <Input
+                                    name="dataPath"
+                                    value={formData.dataPath}
+                                    onChange={handleChange}
+                                    placeholder="Ex: /var/lib/mysql"
+                                    disabled={isSubmitting}
+                                />
+                            </div>
+                            <div className="space-y-2">
                                 <label className="text-sm font-medium">Comando (Opcional)</label>
                                 <Input
                                     name="command"
@@ -145,7 +179,7 @@ export function CreateImageTemplateModal({
                                         name="healthcheckInterval"
                                         value={formData.healthcheckInterval}
                                         onChange={handleChange}
-                                        placeholder="30s"
+                                        placeholder="Ex: 30s"
                                         disabled={isSubmitting}
                                     />
                                 </div>
@@ -155,7 +189,7 @@ export function CreateImageTemplateModal({
                                         name="healthcheckTimeout"
                                         value={formData.healthcheckTimeout}
                                         onChange={handleChange}
-                                        placeholder="10s"
+                                        placeholder="Ex: 10s"
                                         disabled={isSubmitting}
                                     />
                                 </div>
@@ -163,10 +197,10 @@ export function CreateImageTemplateModal({
                                     <label className="text-sm font-medium">Retentativas</label>
                                     <Input
                                         name="healthcheckRetries"
-                                        type="number"
+                                        type="number" // Importante para UX
                                         value={formData.healthcheckRetries}
                                         onChange={handleChange}
-                                        placeholder="3"
+                                        placeholder="Ex: 3"
                                         disabled={isSubmitting}
                                     />
                                 </div>

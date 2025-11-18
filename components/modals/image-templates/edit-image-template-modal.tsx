@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
-import { ImageTemplate } from "@/lib/types"; // Importar tipo
+import { ImageTemplate } from "@/lib/types"
 import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -27,10 +27,12 @@ const defaultForm = {
     name: "",
     image: "",
     command: "",
+    dataPath: "",
+    defaultPort: "",
     healthcheckTest: "",
-    healthcheckInterval: "30s",
-    healthcheckTimeout: "10s",
-    healthcheckRetries: 3,
+    healthcheckInterval: "",
+    healthcheckTimeout: "",
+    healthcheckRetries: "",
 }
 
 export function EditImageTemplateModal({
@@ -43,7 +45,6 @@ export function EditImageTemplateModal({
     const [isLoading, setIsLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    // --- Buscar dados do template para preencher ---
     useEffect(() => {
         if (open && templateId) {
             const fetchTemplate = async () => {
@@ -54,22 +55,24 @@ export function EditImageTemplateModal({
                         name: data.name,
                         image: data.image,
                         command: data.command || "",
+                        dataPath: data.dataPath || "",
                         healthcheckTest: data.healthcheckTest || "",
-                        healthcheckInterval: data.healthcheckInterval || "30s",
-                        healthcheckTimeout: data.healthcheckTimeout || "10s",
-                        healthcheckRetries: data.healthcheckRetries || 3,
+                        healthcheckInterval: data.healthcheckInterval || "",
+                        healthcheckTimeout: data.healthcheckTimeout || "",
+                        defaultPort: data.defaultPort ? String(data.defaultPort) : "",
+                        healthcheckRetries: data.healthcheckRetries ? String(data.healthcheckRetries) : "",
                     })
                 } catch (error) {
                     console.error("Falha ao buscar template:", error)
                     toast.error("Falha ao carregar dados do template.")
-                    onOpenChange(false) // Fecha o modal se falhar
+                    onOpenChange(false)
                 } finally {
                     setIsLoading(false)
                 }
             }
             fetchTemplate()
         } else {
-            setFormData(defaultForm) // Reseta o formulário
+            setFormData(defaultForm)
         }
     }, [open, templateId, onOpenChange])
 
@@ -77,7 +80,7 @@ export function EditImageTemplateModal({
         const { name, value } = e.target
         setFormData(prev => ({
             ...prev,
-            [name]: name === 'healthcheckRetries' ? Number(value) : value,
+            [name]: value,
         }))
     }
 
@@ -87,15 +90,23 @@ export function EditImageTemplateModal({
 
         setIsSubmitting(true)
         try {
-            const payload = {
+            // --- MUDANÇA AQUI ---
+            // Inicializamos o payload apenas com os campos OBRIGATÓRIOS
+            const payload: any = {
                 name: formData.name,
                 image: formData.image,
-                command: formData.command || null,
-                healthcheckTest: formData.healthcheckTest || null,
-                healthcheckInterval: formData.healthcheckInterval || null,
-                healthcheckTimeout: formData.healthcheckTimeout || null,
-                healthcheckRetries: formData.healthcheckRetries || null,
             }
+
+            // Adicionamos os campos opcionais APENAS se tiverem valor (não envia null nem vazio)
+            if (formData.command) payload.command = formData.command;
+            if (formData.dataPath) payload.dataPath = formData.dataPath;
+            if (formData.healthcheckTest) payload.healthcheckTest = formData.healthcheckTest;
+            if (formData.healthcheckInterval) payload.healthcheckInterval = formData.healthcheckInterval;
+            if (formData.healthcheckTimeout) payload.healthcheckTimeout = formData.healthcheckTimeout;
+
+            // Conversão de numéricos apenas se existir valor
+            if (formData.defaultPort) payload.defaultPort = Number(formData.defaultPort);
+            if (formData.healthcheckRetries) payload.healthcheckRetries = Number(formData.healthcheckRetries);
 
             await apiClient.updateImageTemplate(templateId, payload)
             onTemplateUpdated()
@@ -130,7 +141,6 @@ export function EditImageTemplateModal({
                                 <TabsTrigger value="healthcheck">Health Check</TabsTrigger>
                             </TabsList>
 
-                            {/* Aba Principal */}
                             <TabsContent value="main" className="space-y-4 pt-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Nome do Template</label>
@@ -155,6 +165,27 @@ export function EditImageTemplateModal({
                                     />
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-sm font-medium">Porta padrão (Opcional)</label>
+                                    <Input
+                                        name="defaultPort"
+                                        type="number"
+                                        value={formData.defaultPort}
+                                        onChange={handleChange}
+                                        placeholder="Ex: 3306"
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Caminho de dados (Opcional)</label>
+                                    <Input
+                                        name="dataPath"
+                                        value={formData.dataPath}
+                                        onChange={handleChange}
+                                        placeholder="Ex: /var/lib/mysql"
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-sm font-medium">Comando (Opcional)</label>
                                     <Input
                                         name="command"
@@ -166,7 +197,6 @@ export function EditImageTemplateModal({
                                 </div>
                             </TabsContent>
 
-                            {/* Aba Healthcheck */}
                             <TabsContent value="healthcheck" className="space-y-4 pt-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Comando de Teste (Opcional)</label>
@@ -185,7 +215,7 @@ export function EditImageTemplateModal({
                                             name="healthcheckInterval"
                                             value={formData.healthcheckInterval}
                                             onChange={handleChange}
-                                            placeholder="30s"
+                                            placeholder="Ex: 30s"
                                             disabled={isSubmitting}
                                         />
                                     </div>
@@ -195,7 +225,7 @@ export function EditImageTemplateModal({
                                             name="healthcheckTimeout"
                                             value={formData.healthcheckTimeout}
                                             onChange={handleChange}
-                                            placeholder="10s"
+                                            placeholder="Ex: 10s"
                                             disabled={isSubmitting}
                                         />
                                     </div>
@@ -206,7 +236,7 @@ export function EditImageTemplateModal({
                                             type="number"
                                             value={formData.healthcheckRetries}
                                             onChange={handleChange}
-                                            placeholder="3"
+                                            placeholder="Ex: 3"
                                             disabled={isSubmitting}
                                         />
                                     </div>

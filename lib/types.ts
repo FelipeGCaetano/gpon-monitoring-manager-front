@@ -70,6 +70,8 @@ export interface ImageTemplate {
   name: string
   image: string
   command?: string
+  dataPath?: string
+  defaultPort?: number
   healthcheckTest?: string
   healthcheckInterval?: string
   healthcheckTimeout?: string
