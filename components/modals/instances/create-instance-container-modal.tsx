@@ -244,7 +244,7 @@ export function CreateInstanceContainerModal({
             protocol = "mysql";
             user = getVal("_USER") || "root";
             pass = getVal("_PASSWORD") || "senha";
-            const db = getVal("_DATABASE") || "mydb";
+            const db = getVal("_DATABASE") || "";
             dbPath = `/${db}`;
             portConfig = getPortsConfig(3306) as any;
         }
@@ -395,8 +395,8 @@ export function CreateInstanceContainerModal({
                             <Tabs defaultValue="general" className="space-y-4">
                                 <TabsList className="grid grid-cols-5 w-full">
                                     <TabsTrigger value="general">Geral</TabsTrigger>
-                                    <TabsTrigger value="environment">Ambiente</TabsTrigger>
                                     <TabsTrigger value="ports">Portas</TabsTrigger>
+                                    <TabsTrigger value="environment">Ambiente</TabsTrigger>
                                     <TabsTrigger value="volumes">Volumes</TabsTrigger>
                                     <TabsTrigger value="network">Rede</TabsTrigger>
                                 </TabsList>
@@ -413,6 +413,13 @@ export function CreateInstanceContainerModal({
                                             <SelectContent>{imageTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                                         </Select>
                                     </div>
+                                </TabsContent>
+
+                                <TabsContent value="ports" className="space-y-3">
+                                    {renderPortInputs()}
+                                    <Button type="button" variant="outline" size="sm" onClick={addPort} disabled={isSubmitting} className="gap-2">
+                                        <Plus className="w-4 h-4" /> Adicionar Porta
+                                    </Button>
                                 </TabsContent>
 
                                 <TabsContent value="environment" className="space-y-4">
@@ -479,13 +486,6 @@ export function CreateInstanceContainerModal({
                                             )}
                                         </>
                                     )}
-                                </TabsContent>
-
-                                <TabsContent value="ports" className="space-y-3">
-                                    {renderPortInputs()}
-                                    <Button type="button" variant="outline" size="sm" onClick={addPort} disabled={isSubmitting} className="gap-2">
-                                        <Plus className="w-4 h-4" /> Adicionar Porta
-                                    </Button>
                                 </TabsContent>
 
                                 <TabsContent value="volumes" className="space-y-3">
