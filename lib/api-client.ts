@@ -56,6 +56,10 @@ export const apiClient = {
     return data
   },
 
+  async getSelf() {
+    return fetchWithAuth("/users")
+  },
+
   async requestPasswordRecovery(email: string) {
     const response = await fetch(`${API_BASE_URL}/users/password-recovery`, {
       method: "POST",

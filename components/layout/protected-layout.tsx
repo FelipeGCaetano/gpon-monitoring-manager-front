@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
 import { Activity, LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
+import { UserProfileModal } from "../modals/users/user-profile-modal"
 
 interface ProtectedLayoutProps {
   children: React.ReactNode
@@ -20,6 +21,9 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { userCan, user, logout } = useAuth()
   const [systemName, setSystemName] = useState("GPON")
+  
+  // Estado para controlar o modal de perfil
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   // Busca nome do sistema
   useEffect(() => {
@@ -27,7 +31,6 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
       if (userCan("read:settings")) {
         try {
           const data = await apiClient.getSettings()
-  
           if (data?.systemName) setSystemName(data.systemName)
         } catch (error) {
           console.error("Erro ao buscar settings:", error)
@@ -36,9 +39,8 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
         setSystemName("GPON Manager")
       }
     }
-
     fetchSettings()
-  }, [])
+  }, [userCan]) // Adicionei userCan nas deps para evitar warnings
 
   return (
     <div className="flex h-screen bg-background">
@@ -64,14 +66,24 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
         {/* User Info and Logout */}
         <div className="border-t border-sidebar-border p-4 space-y-3">
           {sidebarOpen && (
-            <div className="px-2 text-sm">
-              <p className="font-medium text-sidebar-foreground truncate">{user?.name}</p>
-              <p className="text-sidebar-foreground/70 text-xs truncate">{user?.email}</p>
-              <Badge variant="outline" className="mt-2 text-xs">
+            // Transformei a div em um elemento clicável/interativo
+            <div 
+              className="px-2 text-sm cursor-pointer hover:bg-sidebar-accent rounded-md p-2 transition-colors group"
+              onClick={() => setIsProfileModalOpen(true)}
+              title="Clique para ver perfil e alterar senha"
+            >
+              <p className="font-medium text-sidebar-foreground truncate group-hover:text-accent-foreground">
+                {user?.name}
+              </p>
+              <p className="text-sidebar-foreground/70 text-xs truncate group-hover:text-accent-foreground/80">
+                {user?.email}
+              </p>
+              <Badge variant="outline" className="mt-2 text-xs bg-background/50 group-hover:bg-background">
                 {user?.role.name === "ADMIN" ? "Administrador" : user?.role.name === "OPERATOR" ? "Operador" : "Visualizador"}
               </Badge>
             </div>
           )}
+          
           <Button
             variant="ghost"
             size="sm"
@@ -106,6 +118,12 @@ export function ProtectedLayout({ children, title, description }: ProtectedLayou
           <div className="p-6">{children}</div>
         </div>
       </main>
+
+      {/* Modal de Perfil (Renderizado fora do fluxo principal) */}
+      <UserProfileModal 
+        open={isProfileModalOpen} 
+        onOpenChange={setIsProfileModalOpen} 
+      />
     </div>
   )
 }

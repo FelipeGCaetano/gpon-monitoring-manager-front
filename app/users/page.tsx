@@ -82,7 +82,6 @@ export default function UsersPage() {
   const fetchUsersAndRoles = async () => {
     setIsLoading(true)
     try {
-      // 6. Verificar permissões antes de buscar
       const canReadUsers = userCan("read:users:all")
       const canReadRoles = userCan("read:roles")
 
@@ -166,11 +165,19 @@ export default function UsersPage() {
     setIsSubmitting(true)
     try {
       if (editingUser) {
+        // CORREÇÃO AQUI: Construção explícita do payload
         const updateData: Partial<UserFormData> = {
-          ...formData,
+          name: formData.name,
+          email: formData.email,
           phone: formData.phone,
-          password: formData.password || undefined,
+          role: formData.role,
         }
+
+        // Só injeta a chave 'password' no objeto se ela tiver conteúdo
+        if (formData.password && formData.password.trim() !== "") {
+          updateData.password = formData.password;
+        }
+
         await apiClient.updateUser(editingUser.id, updateData)
       } else {
         const createData = { ...formData, phone: formData.phone }
@@ -234,7 +241,6 @@ export default function UsersPage() {
                               <Edit2 className="w-3 h-3" />
                             </Button>
                           )}
-                          {/* 12. Permissão de Deletar */}
                           {userCan("delete:user") && (
                             <Button
                               size="sm"
@@ -339,17 +345,6 @@ export default function UsersPage() {
                 maxLength={15}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
                 placeholder="Ex: (11) 98888-7777"
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Senha</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
-                placeholder={editingUser ? "Deixe em branco para não alterar" : "••••••••"}
                 disabled={isSubmitting}
               />
             </div>
