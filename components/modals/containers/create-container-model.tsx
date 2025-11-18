@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
 import type { EnvDefinition, GponInstance, ImageTemplate } from "@/lib/types"
-import { AlertCircle, Copy, Globe, Loader2, Lock, Network, Trash2 } from "lucide-react"
+import { AlertCircle, Copy, Globe, Loader2, Lock, Network, Plus, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -76,11 +76,12 @@ export function CreateContainerModal({
     const [imageTemplates, setImageTemplates] = useState<ImageTemplate[]>([])
     const [gponInstances, setGponInstances] = useState<GponInstance[]>([])
     const [globalEnvs, setGlobalEnvs] = useState<{ key: string, value: string }[]>([])
-    const [usedPorts, setUsedPorts] = useState<number[]>([]) // 1. Estado para portas em uso
+    const [usedPorts, setUsedPorts] = useState<number[]>([])
 
     const [name, setName] = useState("")
     const [selectedImage, setSelectedImage] = useState("")
     const [selectedInstance, setSelectedInstance] = useState("")
+    const [selectedTemplate, setSelectedTemplate] = useState<ImageTemplate>()
     const [envVars, setEnvVars] = useState<FormEnvVar[]>([])
     const [ports, setPorts] = useState<FormPortMap[]>([createDefaultPort()])
     const [volumes, setVolumes] = useState<FormVolumeMap[]>([createDefaultVolume()])
@@ -102,7 +103,6 @@ export function CreateContainerModal({
             const fetchData = async () => {
                 setIsLoadingData(true)
                 try {
-                    // 2. Carregando portas em uso junto com os outros dados
                     const [templatesData, instancesData, settingsData, usedPortsData] = await Promise.all([
                         apiClient.getImageTemplates(),
                         apiClient.getInstances(),
@@ -135,6 +135,8 @@ export function CreateContainerModal({
         const template = imageTemplates.find(t => t.id === selectedImage)
 
         if (template && template.envDefinitions) {
+            setSelectedTemplate(template)
+
             const newEnvs = template.envDefinitions.map((def: EnvDefinition) => {
                 const isGlobal = globalEnvMap.has(def.key);
                 let value = "";
@@ -271,7 +273,6 @@ export function CreateContainerModal({
         e.preventDefault()
         setIsSubmitting(true)
 
-        // Validação de variáveis
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && !env.value)
         if (missingRequiredEnvs.length > 0) {
             alert(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
@@ -279,7 +280,6 @@ export function CreateContainerModal({
             return
         }
 
-        // 3. Validação de conflito de Portas antes do envio
         const portConflicts = ports.filter(p => p.publicPort && usedPorts.includes(parseInt(p.publicPort, 10)));
         if (portConflicts.length > 0) {
             toast.error(`As seguintes portas públicas já estão em uso: ${portConflicts.map(p => p.publicPort).join(", ")}. Por favor, escolha outras.`);
@@ -326,64 +326,107 @@ export function CreateContainerModal({
         }
     }
 
-    const renderDynamicInputs = (
-        items: (FormPortMap | FormVolumeMap)[],
-        onChange: (id: string, field: any, value: string) => void,
-        onRemove: (id: string) => void,
-        fields: { name: string; placeholder: string }[]
-    ) => {
-        return items.map((item) => {
-            return (
-                <div key={item.id} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        {fields.map((field) => {
-                            // Lógica de validação de porta
-                            const isPortConflict = field.name === "publicPort" &&
-                                // @ts-ignore - Garantimos que item tem essa prop pelo contexto
-                                usedPorts.includes(parseInt(item[field.name], 10));
+    // --- Renderizadores Específicos (Estilo Atualizado) ---
 
-                            return (
-                                <div key={field.name} className="flex-1 relative">
+    const renderPortInputs = () => {
+        return (
+            <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1">
+                    <span className="text-xs font-medium text-muted-foreground">Porta Pública (Host)</span>
+                    <span className="text-xs font-medium text-muted-foreground">Porta Privada (Container)</span>
+                    <span className="w-8"></span>
+                </div>
+
+                {ports.map((item) => {
+                    // Validação visual
+                    const isConflict = item.publicPort && usedPorts.includes(parseInt(item.publicPort, 10));
+
+                    return (
+                        <div key={item.id} className="flex flex-col gap-1">
+                            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                                <div className="relative">
                                     <Input
-                                        type={field.name.includes("Port") ? "number" : "text"}
-                                        placeholder={field.placeholder}
-                                        // @ts-ignore
-                                        value={item[field.name as keyof typeof item]}
-                                        onChange={(e) => onChange(item.id, field.name, e.target.value)}
+                                        type="number"
+                                        placeholder="Ex: 8080"
+                                        value={item.publicPort}
+                                        onChange={(e) => handlePortChange(item.id, 'publicPort', e.target.value)}
                                         disabled={isSubmitting}
-                                        className={isPortConflict ? "border-destructive pr-8 text-destructive" : ""}
+                                        className={isConflict ? "border-destructive pr-8 text-destructive focus-visible:ring-destructive" : ""}
                                     />
-                                    {isPortConflict && (
-                                        <div className="absolute right-2 top-2.5 text-destructive">
+                                    {isConflict && (
+                                        <div className="absolute right-2 top-2.5 text-destructive pointer-events-none">
                                             <AlertCircle className="h-4 w-4" />
                                         </div>
                                     )}
                                 </div>
-                            )
-                        })}
+                                <Input
+                                    type="number"
+                                    placeholder={selectedTemplate && selectedTemplate.defaultPort ? `Ex: ${selectedTemplate.defaultPort}` : "Ex: 80"}
+                                    value={item.privatePort}
+                                    onChange={(e) => handlePortChange(item.id, 'privatePort', e.target.value)}
+                                    disabled={isSubmitting}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removePort(item.id)}
+                                    disabled={isSubmitting || ports.length === 1}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-8"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                            {isConflict && (
+                                <span className="text-[0.7rem] font-medium text-destructive ml-1">
+                                    Esta porta já está em uso.
+                                </span>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        )
+    }
+
+    const renderVolumeInputs = () => {
+        return (
+            <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1">
+                    <span className="text-xs font-medium text-muted-foreground">Nome do Volume (Host)</span>
+                    <span className="text-xs font-medium text-muted-foreground">Caminho no Container</span>
+                    <span className="w-8"></span>
+                </div>
+                {volumes.map((item) => (
+                    <div key={item.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                        <Input
+                            type="text"
+                            placeholder="Ex: dados-db"
+                            value={item.name}
+                            onChange={(e) => handleVolumeChange(item.id, 'name', e.target.value)}
+                            disabled={isSubmitting}
+                        />
+                        <Input
+                            type="text"
+                            placeholder={selectedTemplate && selectedTemplate.dataPath ? `Ex: ${selectedTemplate.dataPath}` : "Ex: /var/data/mysql"}
+                            value={item.containerPath}
+                            onChange={(e) => handleVolumeChange(item.id, 'containerPath', e.target.value)}
+                            disabled={isSubmitting}
+                        />
                         <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
-                            onClick={() => onRemove(item.id)}
-                            disabled={isSubmitting || items.length === 1}
-                            className="text-destructive hover:text-destructive"
+                            size="icon"
+                            onClick={() => removeVolume(item.id)}
+                            disabled={isSubmitting || volumes.length === 1}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-8"
                         >
                             <Trash2 className="w-4 h-4" />
                         </Button>
                     </div>
-
-                    {/* Mensagem de erro abaixo da linha */}
-                    {fields.some(f => f.name === "publicPort") &&
-                        // @ts-ignore
-                        usedPorts.includes(parseInt(item["publicPort"], 10)) && (
-                            <div className="text-[0.8rem] font-medium text-destructive ml-1">
-                                Esta porta pública já está em uso.
-                            </div>
-                        )}
-                </div>
-            )
-        })
+                ))}
+            </div>
+        )
     }
 
     return (
@@ -466,17 +509,9 @@ export function CreateContainerModal({
                                 </TabsContent>
 
                                 <TabsContent value="ports" className="space-y-3">
-                                    {renderDynamicInputs(
-                                        ports,
-                                        handlePortChange as any,
-                                        removePort,
-                                        [
-                                            { name: "publicPort", placeholder: "Porta Pública (Host)" },
-                                            { name: "privatePort", placeholder: "Porta Privada (Container)" },
-                                        ]
-                                    )}
-                                    <Button type="button" variant="outline" size="sm" onClick={addPort} disabled={isSubmitting}>
-                                        Adicionar Porta
+                                    {renderPortInputs()}
+                                    <Button type="button" variant="outline" size="sm" onClick={addPort} disabled={isSubmitting} className="gap-2">
+                                        <Plus className="w-4 h-4" /> Adicionar Porta
                                     </Button>
                                 </TabsContent>
 
@@ -552,17 +587,9 @@ export function CreateContainerModal({
                                 </TabsContent>
 
                                 <TabsContent value="volumes" className="space-y-3">
-                                    {renderDynamicInputs(
-                                        volumes,
-                                        handleVolumeChange as any,
-                                        removeVolume,
-                                        [
-                                            { name: "name", placeholder: "Nome do Volume (Host)" },
-                                            { name: "containerPath", placeholder: "Caminho no Container" },
-                                        ]
-                                    )}
-                                    <Button type="button" variant="outline" size="sm" onClick={addVolume} disabled={isSubmitting}>
-                                        Adicionar Volume
+                                    {renderVolumeInputs()}
+                                    <Button type="button" variant="outline" size="sm" onClick={addVolume} disabled={isSubmitting} className="gap-2">
+                                        <Plus className="w-4 h-4" /> Adicionar Volume
                                     </Button>
                                 </TabsContent>
 

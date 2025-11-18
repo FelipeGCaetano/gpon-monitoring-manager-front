@@ -96,6 +96,7 @@ export function CreateInstanceContainerModal({
 
     const [name, setName] = useState("")
     const [selectedImage, setSelectedImage] = useState("")
+    const [selectedTemplate, setSelectedTemplate] = useState<ImageTemplate>()
     const [envVars, setEnvVars] = useState<FormEnvVar[]>([])
     const [ports, setPorts] = useState<FormPortMap[]>([createDefaultPort()])
     const [volumes, setVolumes] = useState<FormVolumeMap[]>([createDefaultVolume()])
@@ -134,6 +135,7 @@ export function CreateInstanceContainerModal({
                 setIsLoadingData(true)
                 const template = imageTemplates.find(t => t.image === containerToEdit.image)
                 if (template) {
+                    setSelectedTemplate(template)
                     setName(containerToEdit.name)
                     setSelectedImage(template.id)
                     setTempId(containerToEdit.tempId)
@@ -378,7 +380,7 @@ export function CreateInstanceContainerModal({
                                 </div>
                                 <Input
                                     type="number"
-                                    placeholder="Ex: 80"
+                                    placeholder={selectedTemplate && selectedTemplate.defaultPort ? `Ex: ${selectedTemplate.defaultPort}` : "Ex: 80"}
                                     value={item.privatePort}
                                     onChange={(e) => handlePortChange(item.id, 'privatePort', e.target.value)}
                                     disabled={isSubmitting}
@@ -417,7 +419,7 @@ export function CreateInstanceContainerModal({
                 {volumes.map((item) => (
                     <div key={item.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
                         <Input type="text" placeholder="Ex: dados-db" value={item.name} onChange={(e) => handleVolumeChange(item.id, 'name', e.target.value)} disabled={isSubmitting} />
-                        <Input type="text" placeholder="Ex: /var/lib/mysql" value={item.containerPath} onChange={(e) => handleVolumeChange(item.id, 'containerPath', e.target.value)} disabled={isSubmitting} />
+                        <Input type="text" placeholder={selectedTemplate && selectedTemplate.dataPath ? `Ex: ${selectedTemplate.dataPath}` : "Ex: /var/data/mysql"} value={item.containerPath} onChange={(e) => handleVolumeChange(item.id, 'containerPath', e.target.value)} disabled={isSubmitting} />
                         <Button type="button" variant="ghost" size="icon" onClick={() => removeVolume(item.id)} disabled={isSubmitting || volumes.length === 1} className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-8"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                 ))}
