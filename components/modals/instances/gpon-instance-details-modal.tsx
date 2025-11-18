@@ -126,9 +126,9 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Imagem</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[30%]">Nome</TableHead>
+                      <TableHead className="w-[50%]">Imagem</TableHead>
+                      <TableHead className="w-[20%]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -141,9 +141,18 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                     ) : (
                       instance.containers.map((container) => (
                         <TableRow key={container.id}>
-                          <TableCell className="font-medium">{container.name}</TableCell>
-                          <TableCell className="font-mono text-xs">{container.imageTemplate.image}</TableCell>
-                          <TableCell>
+                          {/* 1. Adicionado whitespace-normal e break-words para o nome quebrar linha se tiver espaços */}
+                          <TableCell className="font-medium whitespace-normal break-words align-top">
+                            {container.name}
+                          </TableCell>
+
+                          {/* 2. Adicionado break-all para a imagem. Como imagens docker não tem espaço, 
+                              o break-all força a quebra em qualquer caractere para não gerar barra de rolagem */}
+                          <TableCell className="font-mono text-xs whitespace-normal break-all align-top">
+                            {container.imageTemplate.image}
+                          </TableCell>
+
+                          <TableCell className="align-top">
                             <Badge
                               variant="outline"
                               className={`${getStatusColor(container.status)} text-white border-0`}
