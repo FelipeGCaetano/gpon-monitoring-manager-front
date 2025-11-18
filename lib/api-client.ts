@@ -266,6 +266,10 @@ export const apiClient = {
     })
   },
 
+  async getUsedPublicPorts() {
+    return fetchWithAuth(`/containers/used-public-ports`)
+  },
+
   async getImageTemplates() {
     return fetchWithAuth("/containers/images")
   },

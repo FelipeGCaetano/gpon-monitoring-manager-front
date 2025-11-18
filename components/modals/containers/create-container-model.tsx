@@ -12,10 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
-// 1. Adicionei Copy, Globe e Network aos imports
-import { Copy, Globe, Loader2, Lock, Network, Trash2 } from "lucide-react"
-// 2. Adicionei useMemo aos imports
 import type { EnvDefinition, GponInstance, ImageTemplate } from "@/lib/types"
+import { AlertCircle, Copy, Globe, Loader2, Lock, Network, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -78,6 +76,7 @@ export function CreateContainerModal({
     const [imageTemplates, setImageTemplates] = useState<ImageTemplate[]>([])
     const [gponInstances, setGponInstances] = useState<GponInstance[]>([])
     const [globalEnvs, setGlobalEnvs] = useState<{ key: string, value: string }[]>([])
+    const [usedPorts, setUsedPorts] = useState<number[]>([]) // 1. Estado para portas em uso
 
     const [name, setName] = useState("")
     const [selectedImage, setSelectedImage] = useState("")
@@ -103,14 +102,17 @@ export function CreateContainerModal({
             const fetchData = async () => {
                 setIsLoadingData(true)
                 try {
-                    const [templatesData, instancesData, settingsData] = await Promise.all([
+                    // 2. Carregando portas em uso junto com os outros dados
+                    const [templatesData, instancesData, settingsData, usedPortsData] = await Promise.all([
                         apiClient.getImageTemplates(),
                         apiClient.getInstances(),
                         apiClient.getSettings(),
+                        apiClient.getUsedPublicPorts(),
                     ])
                     setImageTemplates(templatesData || [])
                     setGponInstances(instancesData || [])
                     setGlobalEnvs(settingsData?.globalEnv || [])
+                    setUsedPorts(usedPortsData || [])
                 } catch (error) {
                     toast.error("Falha ao carregar dados.")
                 } finally {
@@ -186,7 +188,6 @@ export function CreateContainerModal({
         }
     }
 
-    // --- 3. Lógica de Visualização de URL (Inserida Aqui) ---
     const connectionPreview = useMemo(() => {
         const template = imageTemplates.find(t => t.id === selectedImage);
         if (!template) return null;
@@ -265,17 +266,25 @@ export function CreateContainerModal({
         navigator.clipboard.writeText(text);
         toast.success("Copiado!");
     }
-    // -------------------------------------------------------
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsSubmitting(true)
 
+        // Validação de variáveis
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && !env.value)
         if (missingRequiredEnvs.length > 0) {
             alert(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
             setIsSubmitting(false)
             return
+        }
+
+        // 3. Validação de conflito de Portas antes do envio
+        const portConflicts = ports.filter(p => p.publicPort && usedPorts.includes(parseInt(p.publicPort, 10)));
+        if (portConflicts.length > 0) {
+            toast.error(`As seguintes portas públicas já estão em uso: ${portConflicts.map(p => p.publicPort).join(", ")}. Por favor, escolha outras.`);
+            setIsSubmitting(false);
+            return;
         }
 
         const finalEnvVars = envVars.filter((env) => env.key).map(({ key, value }) => ({ key, value }))
@@ -323,31 +332,58 @@ export function CreateContainerModal({
         onRemove: (id: string) => void,
         fields: { name: string; placeholder: string }[]
     ) => {
-        return items.map((item) => (
-            <div key={item.id} className="flex items-center gap-2">
-                {fields.map((field) => (
-                    <Input
-                        key={field.name}
-                        type={field.name.includes("Port") ? "number" : "text"}
-                        placeholder={field.placeholder}
-                        value={item[field.name as keyof typeof item]}
-                        onChange={(e) => onChange(item.id, field.name, e.target.value)}
-                        disabled={isSubmitting}
-                        className="flex-1"
-                    />
-                ))}
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRemove(item.id)}
-                    disabled={isSubmitting || items.length === 1}
-                    className="text-destructive hover:text-destructive"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </Button>
-            </div>
-        ))
+        return items.map((item) => {
+            return (
+                <div key={item.id} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                        {fields.map((field) => {
+                            // Lógica de validação de porta
+                            const isPortConflict = field.name === "publicPort" &&
+                                // @ts-ignore - Garantimos que item tem essa prop pelo contexto
+                                usedPorts.includes(parseInt(item[field.name], 10));
+
+                            return (
+                                <div key={field.name} className="flex-1 relative">
+                                    <Input
+                                        type={field.name.includes("Port") ? "number" : "text"}
+                                        placeholder={field.placeholder}
+                                        // @ts-ignore
+                                        value={item[field.name as keyof typeof item]}
+                                        onChange={(e) => onChange(item.id, field.name, e.target.value)}
+                                        disabled={isSubmitting}
+                                        className={isPortConflict ? "border-destructive pr-8 text-destructive" : ""}
+                                    />
+                                    {isPortConflict && (
+                                        <div className="absolute right-2 top-2.5 text-destructive">
+                                            <AlertCircle className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onRemove(item.id)}
+                            disabled={isSubmitting || items.length === 1}
+                            className="text-destructive hover:text-destructive"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    {/* Mensagem de erro abaixo da linha */}
+                    {fields.some(f => f.name === "publicPort") &&
+                        // @ts-ignore
+                        usedPorts.includes(parseInt(item["publicPort"], 10)) && (
+                            <div className="text-[0.8rem] font-medium text-destructive ml-1">
+                                Esta porta pública já está em uso.
+                            </div>
+                        )}
+                </div>
+            )
+        })
     }
 
     return (
@@ -451,7 +487,6 @@ export function CreateContainerModal({
                                         </p>
                                     ) : (
                                         <>
-                                            {/* 4. Interface de Visualização (Inserida Aqui) */}
                                             {connectionPreview && (
                                                 <div className="grid gap-3 mb-4">
                                                     <div className="bg-muted/30 border rounded-md p-3">
@@ -485,7 +520,6 @@ export function CreateContainerModal({
                                                     </div>
                                                 </div>
                                             )}
-                                            {/* -------------------------------------------- */}
 
                                             {envVars.length === 0 ? (
                                                 <p className="text-sm text-muted-foreground text-center py-4">

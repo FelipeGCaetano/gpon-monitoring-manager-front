@@ -121,6 +121,7 @@ export default function ProjectsPage() {
                                             {service.imageTemplate?.name || "Template Removido"}
                                             <span className="ml-2 font-mono text-xs opacity-60">
                                                 (Ordem: {service.startOrder})
+                                                (Tipo: {service.role})
                                             </span>
                                         </Badge>
                                     )) : (

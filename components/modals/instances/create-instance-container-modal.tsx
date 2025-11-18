@@ -11,8 +11,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { apiClient } from "@/lib/api-client"; // Importante: Certifique-se que este caminho está correto
 import type { EnvDefinition, ImageTemplate } from "@/lib/types"
-import { Copy, Globe, Loader2, Lock, Network, Plus, Trash2 } from "lucide-react"
+import { AlertCircle, Copy, Globe, Loader2, Lock, Network, Plus, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -54,13 +55,13 @@ interface FormNetworkConfig {
     ip: string
 }
 
-// Interface de Saída (Mantida como number para a API)
+// Interface de Saída
 export interface InstanceContainerData {
     tempId: string;
     name: string
     image: string
     envVariables: Omit<FormEnvVar, 'id'>[]
-    ports: { privatePort: number, publicPort: number, ip?: string }[] // API espera numbers
+    ports: { privatePort: number, publicPort: number, ip?: string }[]
     volumes: Omit<FormVolumeMap, 'id'>[]
     network: FormNetworkConfig
 }
@@ -74,7 +75,6 @@ interface CreateInstanceContainerModalProps {
     containerToEdit: (InstanceContainerData & { tempId: string }) | null
 }
 
-// MUDANÇA 2: Inicializa com string vazia para mostrar o placeholder
 const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
 const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
 const defaultNetwork: FormNetworkConfig = { name: "", ip: "" }
@@ -90,6 +90,9 @@ export function CreateInstanceContainerModal({
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isLoadingData, setIsLoadingData] = useState(false)
     const [tempId, setTempId] = useState(randomUUID())
+
+    // Novo estado para portas em uso
+    const [usedPorts, setUsedPorts] = useState<number[]>([])
 
     const [name, setName] = useState("")
     const [selectedImage, setSelectedImage] = useState("")
@@ -108,6 +111,22 @@ export function CreateInstanceContainerModal({
         setIsSubmitting(false)
         setTempId(randomUUID())
     }
+
+    // Effect separado para buscar portas em uso sempre que o modal abrir
+    useEffect(() => {
+        if (open) {
+            const fetchUsedPorts = async () => {
+                try {
+                    const portsInUse = await apiClient.getUsedPublicPorts();
+                    setUsedPorts(portsInUse || []);
+                } catch (error) {
+                    console.error("Erro ao buscar portas em uso:", error);
+                    // Não bloqueamos o uso, mas o usuário não verá validação de portas
+                }
+            };
+            fetchUsedPorts();
+        }
+    }, [open]);
 
     useEffect(() => {
         if (open) {
@@ -136,7 +155,7 @@ export function CreateInstanceContainerModal({
                         }
                     });
                     setEnvVars(newEnvs)
-                    // MUDANÇA 3: Converte números salvos para string ao carregar
+
                     setPorts(containerToEdit.ports.map(p => ({
                         ...p,
                         id: randomUUID(),
@@ -155,7 +174,7 @@ export function CreateInstanceContainerModal({
                 setIsLoadingData(false)
             }
         }
-    }, [open, containerToEdit, imageTemplates, globalEnvs])
+    }, [open, containerToEdit, imageTemplates, globalEnvs]) // Removido onOpenChange das deps para evitar loop
 
     useEffect(() => {
         if (containerToEdit || !selectedImage) {
@@ -187,7 +206,6 @@ export function CreateInstanceContainerModal({
         setEnvVars(currentEnvs => currentEnvs.map(env => (env.id === id ? { ...env, value } : env)));
     }
 
-    // MUDANÇA: Handler genérico continua funcionando pois agora state é string
     const handlePortChange = (id: string, field: "privatePort" | "publicPort" | "ip", value: string) => {
         setPorts(currentPorts => currentPorts.map(port => (port.id === id ? { ...port, [field]: value } : port)));
     }
@@ -209,7 +227,6 @@ export function CreateInstanceContainerModal({
             return found ? found.value : "";
         }
 
-        // MUDANÇA 4: Conversão para Number na lógica de preview
         const getPortsConfig = (defaultPort: number) => {
             const mapped = ports.find(p => Number(p.privatePort) === defaultPort);
             return {
@@ -228,7 +245,7 @@ export function CreateInstanceContainerModal({
         let user = "";
         let pass = "";
         let dbPath = "";
-        let portConfig = { public: 0, private: 0 }; // Usando any/string na view mas number aqui
+        let portConfig = { public: 0, private: 0 };
 
         if (img.includes("postgres")) {
             type = "PostgreSQL";
@@ -282,12 +299,26 @@ export function CreateInstanceContainerModal({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         setIsSubmitting(true)
+
+        // 1. Validação de Variáveis Obrigatórias
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && env.key !== "CONTAINER_NAME" && !env.value)
         if (missingRequiredEnvs.length > 0) {
             toast.error(`Variáveis obrigatórias faltando: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
             setIsSubmitting(false)
             return
         }
+
+        // 2. Validação de Conflito de Portas
+        // Nota: Se estivermos editando, o conflito pode ser com a própria porta do container atual. 
+        // O ideal seria filtrar o container atual da lista de portas usadas no backend, 
+        // mas como temos apenas a lista plana de números, validamos estritamente.
+        const portConflicts = ports.filter(p => p.publicPort && usedPorts.includes(parseInt(p.publicPort, 10)));
+        if (portConflicts.length > 0) {
+            toast.error(`As seguintes portas públicas já estão em uso: ${portConflicts.map(p => p.publicPort).join(", ")}. Escolha outras.`);
+            setIsSubmitting(false);
+            return;
+        }
+
         const selectedTemplate = imageTemplates.find(t => t.id === selectedImage);
         if (!selectedTemplate) {
             toast.error("Template não encontrado.");
@@ -295,8 +326,6 @@ export function CreateInstanceContainerModal({
             return;
         }
 
-        // MUDANÇA 5: Converte string para number antes de salvar
-        // Se estiver vazio, ignora a linha ou trata como erro (aqui filtra vazios)
         const finalPorts = ports
             .filter((p) => p.privatePort && p.publicPort)
             .map((p) => ({
@@ -316,46 +345,63 @@ export function CreateInstanceContainerModal({
         setIsSubmitting(false)
     }
 
-    // MUDANÇA 6: Renderização com cabeçalhos e inputs limpos
     const renderPortInputs = () => {
         return (
             <div className="space-y-2">
-                {/* Cabeçalho das colunas */}
                 <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1">
                     <span className="text-xs font-medium text-muted-foreground">Porta Pública (Host)</span>
                     <span className="text-xs font-medium text-muted-foreground">Porta Privada (Container)</span>
-                    <span className="w-8"></span> {/* Espaço para o botão delete */}
+                    <span className="w-8"></span>
                 </div>
 
-                {/* Inputs */}
-                {ports.map((item) => (
-                    <div key={item.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-                        <Input
-                            type="number"
-                            placeholder="Ex: 8080"
-                            value={item.publicPort}
-                            onChange={(e) => handlePortChange(item.id, 'publicPort', e.target.value)}
-                            disabled={isSubmitting}
-                        />
-                        <Input
-                            type="number"
-                            placeholder="Ex: 80"
-                            value={item.privatePort}
-                            onChange={(e) => handlePortChange(item.id, 'privatePort', e.target.value)}
-                            disabled={isSubmitting}
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removePort(item.id)}
-                            disabled={isSubmitting || ports.length === 1}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-8"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </Button>
-                    </div>
-                ))}
+                {ports.map((item) => {
+                    // Verifica se a porta pública atual está na lista de portas usadas
+                    const isConflict = item.publicPort && usedPorts.includes(parseInt(item.publicPort, 10));
+
+                    return (
+                        <div key={item.id} className="flex flex-col gap-1">
+                            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                                <div className="relative">
+                                    <Input
+                                        type="number"
+                                        placeholder="Ex: 8080"
+                                        value={item.publicPort}
+                                        onChange={(e) => handlePortChange(item.id, 'publicPort', e.target.value)}
+                                        disabled={isSubmitting}
+                                        className={isConflict ? "border-destructive pr-8 text-destructive focus-visible:ring-destructive" : ""}
+                                    />
+                                    {isConflict && (
+                                        <div className="absolute right-2 top-2.5 text-destructive pointer-events-none">
+                                            <AlertCircle className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                </div>
+                                <Input
+                                    type="number"
+                                    placeholder="Ex: 80"
+                                    value={item.privatePort}
+                                    onChange={(e) => handlePortChange(item.id, 'privatePort', e.target.value)}
+                                    disabled={isSubmitting}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removePort(item.id)}
+                                    disabled={isSubmitting || ports.length === 1}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-8"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                            {isConflict && (
+                                <span className="text-[0.7rem] font-medium text-destructive ml-1">
+                                    Esta porta já está em uso.
+                                </span>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         )
     }
