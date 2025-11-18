@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
-import { Client, EnvDefinition, ImageTemplate, Module, Project } from "@/lib/types"; // 2. Importar Project e ImageTemplate
-import { Blocks, Container, Loader2, PenLine, Plus, X } from "lucide-react"; // 1. Importar PenLine
+import { Client, EnvDefinition, ImageTemplate, Module, Project } from "@/lib/types"
+import { AlertTriangle, Blocks, Container, Loader2, PenLine, Plus, X } from "lucide-react"; // Adicionado AlertTriangle
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -31,7 +31,7 @@ interface CreateInstanceModalProps {
   projects: Project[]
 }
 
-// 3. Helper para converter Serviço de Projeto em ContainerData (MAIS COMPLETO)
+// Helper para converter Serviço de Projeto em ContainerData
 const projectServiceToContainerData = (
   service: any,
   allTemplates: ImageTemplate[],
@@ -42,7 +42,6 @@ const projectServiceToContainerData = (
 
   const globalEnvMap = new Map(globalEnvs.map(env => [env.key, env.value]));
 
-  // Pré-popula as envs (com globais e CONTAINER_NAME)
   const envVariables = template?.envDefinitions.map((def: EnvDefinition) => {
     const isGlobal = globalEnvMap.has(def.key);
     let value = "";
@@ -64,10 +63,21 @@ const projectServiceToContainerData = (
     name: containerName,
     image: template?.image || "imagem-nao-encontrada",
     envVariables,
-    ports: [], // Portas e volumes começam vazios para o usuário configurar
+    ports: [],
     volumes: [],
     network: { name: "", ip: "" }
   }
+}
+
+// NOVO: Função auxiliar para validar um container individualmente
+const validateContainer = (container: InstanceContainerData): boolean => {
+  // Verifica se existe alguma env obrigatória, não global, que esteja vazia
+  const hasMissingEnv = container.envVariables.some(
+    env => env.isRequired && !env.isGlobal && !env.value
+  );
+
+  // Se tiver env faltando, retorna false (inválido). Se não tiver, retorna true (válido).
+  return !hasMissingEnv;
 }
 
 export function CreateInstanceModal({
@@ -79,9 +89,8 @@ export function CreateInstanceModal({
   projects,
 }: CreateInstanceModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoadingData, setIsLoadingData] = useState(true) // Para templates/settings
+  const [isLoadingData, setIsLoadingData] = useState(true)
 
-  // --- Estados do Formulário ---
   const [name, setName] = useState("")
   const [selectedClientId, setSelectedClientId] = useState("")
   const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([])
@@ -89,7 +98,6 @@ export function CreateInstanceModal({
   const [instanceType, setInstanceType] = useState<string>("PRODUCTION")
   const [selectedProjectId, setSelectedProjectId] = useState<string>("")
 
-  // --- 4. Estados para o Sub-Modal ---
   const [isContainerModalOpen, setIsContainerModalOpen] = useState(false)
   const [editingContainer, setEditingContainer] = useState<(InstanceContainerData & { tempId: string }) | null>(null)
   const [allImageTemplates, setAllImageTemplates] = useState<ImageTemplate[]>([])
@@ -97,7 +105,6 @@ export function CreateInstanceModal({
 
   const selectedProject = projects.find(p => p.id === selectedProjectId)
 
-  // --- Carregar dados para os Sub-modais (Templates e Settings) ---
   useEffect(() => {
     if (open) {
       const fetchData = async () => {
@@ -119,26 +126,20 @@ export function CreateInstanceModal({
     }
   }, [open])
 
-  // --- 5. Efeito para MODO PROJETO ---
   useEffect(() => {
-    // Não roda se os templates ainda não carregaram
     if (isLoadingData) return;
 
     if (selectedProject) {
-      // MODO PROJETO: Preenche os containers
       const projectContainers = selectedProject.services.map(service =>
-        projectServiceToContainerData(service, allImageTemplates, globalEnvs) // Passa envs globais
+        projectServiceToContainerData(service, allImageTemplates, globalEnvs)
       )
       setContainers(projectContainers)
     } else {
-      // MODO MANUAL: Limpa os containers
       setContainers([])
     }
-    // Módulos são sempre manuais, então limpamos
     setSelectedModuleIds([])
-  }, [selectedProjectId, selectedProject, allImageTemplates, globalEnvs, isLoadingData]) // Depende dos dados carregados
+  }, [selectedProjectId, selectedProject, allImageTemplates, globalEnvs, isLoadingData])
 
-  // --- Função para resetar o formulário ---
   const resetForm = () => {
     setName("")
     setSelectedClientId("")
@@ -156,7 +157,6 @@ export function CreateInstanceModal({
     onOpenChange(isOpen)
   }
 
-  // --- Handlers de Módulos e Containers ---
   const handleModuleToggle = (moduleId: string) => {
     setSelectedModuleIds((prev) =>
       prev.includes(moduleId)
@@ -165,28 +165,23 @@ export function CreateInstanceModal({
     )
   }
 
-  // 6. Handlers para o sub-modal (Criar e Editar)
   const handleOpenAddContainer = () => {
-    setEditingContainer(null) // Modo Criação
+    setEditingContainer(null)
     setIsContainerModalOpen(true)
   }
 
   const handleOpenEditContainer = (container: InstanceContainerData) => {
-    setEditingContainer(container) // Modo Edição
+    setEditingContainer(container)
     setIsContainerModalOpen(true)
   }
 
   const handleSaveContainer = (containerData: InstanceContainerData) => {
-    // Verifica se é uma edição (pelo tempId) ou adição
     const existing = containers.find(c => c.tempId === containerData.tempId);
-
     if (existing) {
-      // Atualiza o container existente na lista
       setContainers(prev =>
         prev.map(c => c.tempId === containerData.tempId ? containerData : c)
       )
     } else {
-      // Adiciona um novo container
       setContainers(prev => [...prev, containerData])
     }
     setEditingContainer(null)
@@ -197,7 +192,6 @@ export function CreateInstanceModal({
     setContainers((prev) => prev.filter((c) => c.tempId !== tempId))
   }
 
-  // --- Handler de Submissão Principal ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -206,14 +200,20 @@ export function CreateInstanceModal({
       return
     }
 
+    // NOVO: Validação de containers pendentes
+    const invalidContainers = containers.filter(c => !validateContainer(c));
+    if (invalidContainers.length > 0) {
+      toast.error(`Existem configurações pendentes nos seguintes containers: ${invalidContainers.map(c => c.name).join(", ")}. Por favor, edite-os.`);
+      return;
+    }
+
     setIsSubmitting(true)
     try {
-      // Mapeia os containers do formulário para o payload da API
       const finalContainers = containers.map(c => ({
         name: c.name,
         image: c.image,
         envVariables: c.envVariables.map(e => ({ key: e.key, value: e.value })),
-        ports: c.ports.map(p => ({ ...p, ip: p.ip || undefined })), // Garante que IP é opcional
+        ports: c.ports.map(p => ({ ...p, ip: p.ip || undefined })),
         volumes: c.volumes,
         network: c.network.name ? { ...c.network, ip: c.network.ip || undefined } : undefined,
       }))
@@ -224,10 +224,10 @@ export function CreateInstanceModal({
         type: instanceType,
         projectTemplateId: selectedProjectId || null,
         moduleIds: selectedModuleIds,
-        containers: finalContainers, // Envia os containers configurados
+        containers: finalContainers,
       }
 
-      await apiClient.createInstance(payload as any) // 'as any' para simplificar
+      await apiClient.createInstance(payload as any)
       onInstanceCreated()
       handleCloseModal(false)
     } catch (error: any) {
@@ -238,10 +238,9 @@ export function CreateInstanceModal({
     }
   }
 
-  // Define quais templates o sub-modal pode ver
   const allowedTemplates = selectedProject
-  ? selectedProject.services.map(s => s.imageTemplate) // Apenas templates do projeto
-  : allImageTemplates; // Todos os templates
+    ? selectedProject.services.map(s => s.imageTemplate)
+    : allImageTemplates;
 
   return (
     <>
@@ -257,8 +256,6 @@ export function CreateInstanceModal({
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden space-y-4">
             <div className="flex-1 overflow-y-auto p-1 space-y-4">
 
-              {/* 1. Informações Gerais */}
-              {/* ... (Nome, Cliente, Tipo) ... */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Nome da Instância</label>
                 <Input
@@ -292,7 +289,6 @@ export function CreateInstanceModal({
                 </div>
               </div>
 
-              {/* 2. Seletor de Projeto */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Projeto (Recomendado)</label>
                 <Select
@@ -314,7 +310,6 @@ export function CreateInstanceModal({
                 </Select>
               </div>
 
-              {/* 3. Módulos (Sempre manual) */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Módulos Licenciados
@@ -331,7 +326,7 @@ export function CreateInstanceModal({
                           id={`mod-${module.id}`}
                           checked={selectedModuleIds.includes(module.id)}
                           onCheckedChange={() => handleModuleToggle(module.id)}
-                          disabled={isSubmitting} // Sempre editável
+                          disabled={isSubmitting}
                         />
                         <label
                           htmlFor={`mod-${module.id}`}
@@ -345,11 +340,9 @@ export function CreateInstanceModal({
                 )}
               </div>
 
-              {/* 4. Containers (com botão de Edição) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">Containers</label>
-                  {/* Botão de Adicionar só aparece no modo manual */}
                   {!selectedProjectId && (
                     <Button
                       type="button"
@@ -370,54 +363,64 @@ export function CreateInstanceModal({
                       {selectedProjectId ? "Este projeto não possui containers pré-definidos." : "Nenhum container adicionado."}
                     </p>
                   ) : (
-                    containers.map((container, index) => (
-                      <div key={container.tempId} className="flex items-center justify-between p-2 rounded bg-secondary">
-                        <div className="flex items-center gap-2">
-                          <Container className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">{container.name}</p>
-                            <p className="text-xs text-muted-foreground font-mono">{container.image}</p>
+                    containers.map((container, index) => {
+                      // NOVO: Verifica validade para exibir alerta visual
+                      const isValid = validateContainer(container);
+
+                      return (
+                        <div key={container.tempId} className={`flex items-center justify-between p-2 rounded ${isValid ? 'bg-secondary' : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800'}`}>
+                          <div className="flex items-center gap-2">
+                            {isValid ? (
+                              <Container className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500" />
+                            )}
+
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">{container.name}</p>
+                                {!isValid && <span className="text-[10px] font-bold uppercase text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900 px-1.5 rounded">Pendente</span>}
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono">{container.image}</p>
+                            </div>
+                            {selectedProject && (
+                              <Badge variant="outline" className="gap-1.5 ml-2">
+                                <Blocks className="w-3 h-3" />
+                                {selectedProject.name}
+                              </Badge>
+                            )}
                           </div>
-                          {selectedProject && (
-                            <Badge variant="outline" className="gap-1.5 ml-2">
-                              <Blocks className="w-3 h-3" />
-                              {selectedProject.name}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          {/* Botão de Editar */}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEditContainer(container)}
-                            disabled={isSubmitting || isLoadingData}
-                          >
-                            <PenLine className="w-4 h-4" />
-                          </Button>
-                          {/* Botão de Remover (só em modo manual) */}
-                          {!selectedProjectId && (
+                          <div className="flex gap-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveContainer(container.tempId)}
-                              disabled={isSubmitting}
-                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleOpenEditContainer(container)}
+                              disabled={isSubmitting || isLoadingData}
                             >
-                              <X className="w-4 h-4" />
+                              <PenLine className="w-4 h-4" />
                             </Button>
-                          )}
+                            {!selectedProjectId && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveContainer(container.tempId)}
+                                disabled={isSubmitting}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Botão de Submissão */}
             <div className="mt-auto pt-6 border-t border-border">
               <Button type="submit" className="w-full" disabled={isSubmitting || isLoadingData || !selectedClientId || !name}>
                 {isSubmitting ? (
@@ -431,15 +434,12 @@ export function CreateInstanceModal({
         </DialogContent>
       </Dialog>
 
-      {/* Renderiza o Sub-Modal */}
       <CreateInstanceContainerModal
         open={isContainerModalOpen}
         onOpenChange={setIsContainerModalOpen}
         onSave={handleSaveContainer}
-        // Passa a lista de templates (filtrada ou completa) e as envs
         imageTemplates={allowedTemplates}
         globalEnvs={globalEnvs}
-        // Passa o container para edição
         containerToEdit={editingContainer}
       />
     </>
