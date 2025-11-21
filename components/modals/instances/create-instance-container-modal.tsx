@@ -224,8 +224,14 @@ export function CreateInstanceContainerModal({
         if (!template) return null;
 
         const img = template.image.toLowerCase();
-        const getVal = (keyPart: string) => {
-            const found = envVars.find(e => e.key.includes(keyPart) && e.value);
+
+        // Helper com exclusão para garantir que pegamos a variável certa
+        const getVal = (keyPart: string, exclude?: string) => {
+            const found = envVars.find(e =>
+                e.key.includes(keyPart) &&
+                e.value &&
+                (!exclude || !e.key.includes(exclude))
+            );
             return found ? found.value : "";
         }
 
@@ -249,31 +255,71 @@ export function CreateInstanceContainerModal({
         let dbPath = "";
         let portConfig = { public: 0, private: 0 };
 
+        // --- LÓGICA POSTGRESQL ---
         if (img.includes("postgres")) {
             type = "PostgreSQL";
             protocol = "postgresql";
-            user = getVal("_USER") || "postgres";
-            pass = getVal("_PASSWORD") || "senha";
+
+            const customUser = getVal("_USER");
+            const customPass = getVal("_PASSWORD", "ROOT"); // Busca senha que NÃO seja ROOT
+
+            // REGRA: Só usa customizado se tiver User E Senha
+            if (customUser && customPass) {
+                user = customUser;
+                pass = customPass;
+            } else {
+                // Fallback: Root
+                user = "postgres";
+                pass = getVal("_ROOT_PASSWORD") || getVal("_PASSWORD") || "senha";
+            }
+
             const db = getVal("_DB") || "postgres";
             dbPath = `/${db}`;
             portConfig = getPortsConfig(5432) as any;
         }
+        // --- LÓGICA MYSQL / MARIADB ---
         else if (img.includes("mysql") || img.includes("mariadb")) {
             type = "MySQL/MariaDB";
             protocol = "mysql";
-            user = getVal("_USER") || "root";
-            pass = getVal("_PASSWORD") || "senha";
+
+            const customUser = getVal("_USER");
+            const customPass = getVal("_PASSWORD", "ROOT");
+
+            // REGRA: Só usa customizado se tiver User E Senha
+            if (customUser && customPass) {
+                user = customUser;
+                pass = customPass;
+            } else {
+                // Fallback: Root
+                user = "root";
+                pass = getVal("_ROOT_PASSWORD") || "senha";
+            }
+
             const db = getVal("_DATABASE") || "";
             dbPath = `/${db}`;
             portConfig = getPortsConfig(3306) as any;
         }
+        // --- LÓGICA MONGODB ---
         else if (img.includes("mongo")) {
             type = "MongoDB";
             protocol = "mongodb";
-            user = getVal("USERNAME") || "root";
-            pass = getVal("PASSWORD") || "senha";
+
+            const customUser = getVal("USERNAME");
+            const customPass = getVal("_PASSWORD", "ROOT");
+
+            // REGRA: Só usa customizado se tiver User E Senha
+            if (customUser && customPass) {
+                user = customUser;
+                pass = customPass;
+            } else {
+                // Fallback: Root
+                user = "root";
+                pass = getVal("_ROOT_PASSWORD") || "senha";
+            }
+
             portConfig = getPortsConfig(27017) as any;
         }
+        // --- LÓGICA REDIS ---
         else if (img.includes("redis")) {
             type = "Redis";
             protocol = "redis";
