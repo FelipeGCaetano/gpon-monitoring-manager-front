@@ -6,14 +6,23 @@ import { EditImageTemplateModal } from "@/components/modals/image-templates/edit
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+// Importar Input
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 import type { ImageTemplate } from "@/lib/types"
-import { Edit2, Loader2, Plus, SlidersHorizontal, Trash2 } from "lucide-react"
-import Link from "next/link"; // Importar Link para o botão de "Envs"
-import { useEffect, useState } from "react"
+// Importar ícones Search e ArrowUpDown
+import { ArrowUpDown, Edit2, Loader2, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "../auth-context"
+
+// Tipo auxiliar para ordenação
+type SortConfig = {
+    key: string
+    direction: "asc" | "desc"
+} | null
 
 export default function ImageTemplatesPage() {
     const { userCan, isAuthLoading } = useAuth()
@@ -22,6 +31,10 @@ export default function ImageTemplatesPage() {
     const [templates, setTemplates] = useState<ImageTemplate[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null)
+
+    // ✅ Estados de Busca e Ordenação
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
     // --- Estados dos Modais ---
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -45,13 +58,64 @@ export default function ImageTemplatesPage() {
     }
 
     useEffect(() => {
-        if (isAuthLoading) {
-            return;
-        }
-        if (!isAuthLoading && isLoading) {
-            fetchTemplates();
-        }
+        if (isAuthLoading) return
+        if (!isAuthLoading && isLoading) fetchTemplates()
     }, [isAuthLoading, userCan, isLoading])
+
+    // --- Lógica de Ordenação e Filtro ---
+    const handleSort = (key: string) => {
+        setSortConfig((current) => {
+            if (current?.key === key) {
+                return { key, direction: current.direction === "asc" ? "desc" : "asc" }
+            }
+            return { key, direction: "asc" }
+        })
+    }
+
+    const filteredAndSortedTemplates = useMemo(() => {
+        // 1. Filtragem
+        let result = templates.filter((template) => {
+            if (!searchQuery) return true
+            const query = searchQuery.toLowerCase()
+
+            return (
+                template.name.toLowerCase().includes(query) ||
+                template.image.toLowerCase().includes(query) ||
+                (template.command && template.command.toLowerCase().includes(query))
+            )
+        })
+
+        // 2. Ordenação
+        if (sortConfig !== null) {
+            result.sort((a, b) => {
+                let aValue: any
+                let bValue: any
+
+                // Tratamento especial para contagem de arrays
+                if (sortConfig.key === "containers") {
+                    aValue = a.containers?.length || 0
+                    bValue = b.containers?.length || 0
+                } else {
+                    // Campos normais
+                    aValue = a[sortConfig.key as keyof ImageTemplate]
+                    bValue = b[sortConfig.key as keyof ImageTemplate]
+                }
+
+                // Normalização string
+                if (typeof aValue === 'string') aValue = aValue.toLowerCase()
+                if (typeof bValue === 'string') bValue = bValue.toLowerCase()
+
+                // Tratar nulos/undefined como string vazia para ordenação
+                if (!aValue) aValue = ""
+                if (!bValue) bValue = ""
+
+                if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1
+                if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1
+                return 0
+            })
+        }
+        return result
+    }, [templates, sortConfig, searchQuery])
 
     // --- Handlers ---
     const handleEdit = (template: ImageTemplate) => {
@@ -75,6 +139,20 @@ export default function ImageTemplatesPage() {
         }
     }
 
+    // Componente auxiliar de Header Ordenável
+    const SortableHead = ({ label, sortKey }: { label: string; sortKey: string }) => (
+        <TableHead>
+            <Button
+                variant="ghost"
+                onClick={() => handleSort(sortKey)}
+                className="hover:bg-transparent px-0 font-bold flex items-center gap-1"
+            >
+                {label}
+                <ArrowUpDown className="h-4 w-4" />
+            </Button>
+        </TableHead>
+    )
+
     return (
         <ProtectedLayout
             title="Templates de Imagem"
@@ -88,14 +166,27 @@ export default function ImageTemplatesPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {/* ✅ Barra de Pesquisa */}
+                    <div className="flex items-center mb-4">
+                        <div className="relative w-full max-w-sm">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por nome, imagem ou comando..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8"
+                            />
+                        </div>
+                    </div>
+
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>Imagem Docker</TableHead>
-                                    <TableHead>Comando Padrão</TableHead>
-                                    <TableHead>Em Uso</TableHead>
+                                    <SortableHead label="Nome" sortKey="name" />
+                                    <SortableHead label="Imagem Docker" sortKey="image" />
+                                    <SortableHead label="Comando Padrão" sortKey="command" />
+                                    <SortableHead label="Em Uso" sortKey="containers" />
                                     <TableHead className="text-right">Ações</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -112,14 +203,16 @@ export default function ImageTemplatesPage() {
                                             Você não tem permissão para ver os templates.
                                         </TableCell>
                                     </TableRow>
-                                ) : templates.length === 0 ? (
+                                ) : filteredAndSortedTemplates.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} className="h-24 text-center">
-                                            Nenhum template de imagem encontrado.
+                                            {searchQuery
+                                                ? "Nenhum template encontrado para sua busca."
+                                                : "Nenhum template de imagem encontrado."}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    templates.map((template) => (
+                                    filteredAndSortedTemplates.map((template) => (
                                         <TableRow key={template.id}>
                                             <TableCell className="font-medium">{template.name}</TableCell>
                                             <TableCell className="font-mono text-sm">{template.image}</TableCell>
@@ -129,7 +222,6 @@ export default function ImageTemplatesPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    {/* Assumindo permissão 'read:containers:images:envs' */}
                                                     {userCan("read:containers:images:envs") && (
                                                         <Button asChild size="sm" variant="outline" className="gap-1">
                                                             <Link href={`/image-templates/${template.id}/env-definitions`}>
@@ -138,13 +230,11 @@ export default function ImageTemplatesPage() {
                                                             </Link>
                                                         </Button>
                                                     )}
-                                                    {/* Assumindo permissão 'update:containers:images' (inventada) */}
                                                     {userCan("update:containers:image") && (
                                                         <Button size="sm" variant="ghost" onClick={() => handleEdit(template)} disabled={!!isSubmitting}>
                                                             <Edit2 className="w-4 h-4" />
                                                         </Button>
                                                     )}
-                                                    {/* Assumindo permissão 'delete:containers:images' (inventada) */}
                                                     {userCan("delete:containers:image") && (
                                                         <Button
                                                             size="sm"

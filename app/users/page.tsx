@@ -11,16 +11,26 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
+// Adicionado Input
+import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 import type { Role, User } from "@/lib/types"
-import { Edit2, Loader2, Plus, Shield, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
+// Adicionado ArrowUpDown e Search
+import { ArrowUpDown, Edit2, Loader2, Plus, Search, Shield, Trash2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "../auth-context"
 
 // Tipos auxiliares
 type RoleName = "ADMIN" | "OPERATOR" | "OPERATOR_N2" | "VIEWER"
+
+// Tipo auxiliar para ordenação
+type SortConfig = {
+  key: string
+  direction: "asc" | "desc"
+} | null
+
 interface UserFormData {
   name: string
   email: string
@@ -76,7 +86,10 @@ export default function UsersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState<UserFormData>(defaultFormData)
+
+  // ✅ Estados de Busca e Ordenação
   const [searchTerm, setSearchTerm] = useState("")
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
   // --- Buscar dados da API ---
   const fetchUsersAndRoles = async () => {
@@ -102,35 +115,69 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
-    if (isAuthLoading) {
-      return;
-    }
-    if (!isAuthLoading && isLoading) {
-      fetchUsersAndRoles();
-    }
+    if (isAuthLoading) return
+    if (!isAuthLoading && isLoading) fetchUsersAndRoles()
   }, [isAuthLoading, userCan, isLoading])
 
-  // --- Filtros e helpers ---
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // --- Lógica de Ordenação e Filtro ---
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key) {
+        return { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      }
+      return { key, direction: "asc" }
+    })
+  }
+
+  const filteredAndSortedUsers = useMemo(() => {
+    // 1. Filtragem
+    let result = users.filter((user) => {
+      if (!searchTerm) return true
+      const term = searchTerm.toLowerCase()
+      // Filtra por nome, email ou função
+      return (
+        user.name.toLowerCase().includes(term) ||
+        user.email.toLowerCase().includes(term) ||
+        user.role.name.toLowerCase().includes(term)
+      )
+    })
+
+    // 2. Ordenação
+    if (sortConfig !== null) {
+      result.sort((a, b) => {
+        let aValue: any
+        let bValue: any
+
+        // Tratamento especial para objetos aninhados (role)
+        if (sortConfig.key === "role") {
+          aValue = a.role.name
+          bValue = b.role.name
+        } else {
+          aValue = a[sortConfig.key as keyof User]
+          bValue = b[sortConfig.key as keyof User]
+        }
+
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase()
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase()
+
+        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1
+        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1
+        return 0
+      })
+    }
+    return result
+  }, [users, sortConfig, searchTerm])
 
   const getRoleBadgeClass = (roleName: string) => {
     switch (roleName.toUpperCase()) {
-      case "ADMIN":
-        return "bg-red-500/10 text-red-700"
+      case "ADMIN": return "bg-red-500/10 text-red-700"
       case "OPERATOR":
-      case "OPERATOR_N2":
-        return "bg-blue-500/10 text-blue-700"
-      case "VIEWER":
-      default:
-        return "bg-gray-500/10 text-gray-700"
+      case "OPERATOR_N2": return "bg-blue-500/10 text-blue-700"
+      case "VIEWER": default: return "bg-gray-500/10 text-gray-700"
     }
   }
 
-  // --- Handlers ---
+  // --- Handlers (CRUD) ---
   const handleAddUser = () => {
     setEditingUser(null)
     const defaultRole = roles.length > 0 ? (roles[0].name as RoleName) : "VIEWER"
@@ -165,19 +212,15 @@ export default function UsersPage() {
     setIsSubmitting(true)
     try {
       if (editingUser) {
-        // CORREÇÃO AQUI: Construção explícita do payload
         const updateData: Partial<UserFormData> = {
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
           role: formData.role,
         }
-
-        // Só injeta a chave 'password' no objeto se ela tiver conteúdo
         if (formData.password && formData.password.trim() !== "") {
           updateData.password = formData.password;
         }
-
         await apiClient.updateUser(editingUser.id, updateData)
       } else {
         const createData = { ...formData, phone: formData.phone }
@@ -192,6 +235,20 @@ export default function UsersPage() {
     }
   }
 
+  // --- Componente auxiliar de Header ---
+  const SortableTh = ({ label, sortKey, className = "" }: { label: string, sortKey: string, className?: string }) => (
+    <th className={`text-left py-3 px-4 text-sm font-medium text-muted-foreground ${className}`}>
+      <Button
+        variant="ghost"
+        onClick={() => handleSort(sortKey)}
+        className="hover:bg-transparent px-0 font-medium text-muted-foreground flex items-center gap-1 h-auto"
+      >
+        {label}
+        <ArrowUpDown className="h-3 w-3" />
+      </Button>
+    </th>
+  )
+
   // --- Renderização ---
   return (
     <ProtectedLayout title="Usuários" description="Gerenciar usuários e suas funções no sistema">
@@ -199,18 +256,33 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Usuários do Sistema</CardTitle>
-          <CardDescription>Total de {filteredUsers.length} usuários</CardDescription>
+          <CardDescription>Total de {filteredAndSortedUsers.length} usuários</CardDescription>
         </CardHeader>
         <CardContent>
+
+          {/* ✅ Barra de Pesquisa */}
+          <div className="flex items-center mb-4">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, email ou função..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Nome</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Telefone</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Função</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Criado em</th>
+                  {/* Headers Ordenáveis */}
+                  <SortableTh label="Nome" sortKey="name" />
+                  <SortableTh label="Email" sortKey="email" />
+                  <SortableTh label="Telefone" sortKey="phone" />
+                  <SortableTh label="Função" sortKey="role" />
+                  <SortableTh label="Criado em" sortKey="createdAt" />
                   <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Ações</th>
                 </tr>
               </thead>
@@ -221,8 +293,14 @@ export default function UsersPage() {
                       <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
+                ) : filteredAndSortedUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                      {searchTerm ? "Nenhum usuário encontrado para a busca." : "Nenhum usuário cadastrado."}
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  filteredUsers.map((user) => (
+                  filteredAndSortedUsers.map((user) => (
                     <tr key={user.id} className="border-b border-border hover:bg-secondary/50 transition-colors">
                       <td className="py-3 px-4 text-sm text-foreground">{user.name}</td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{user.email}</td>
@@ -271,7 +349,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Funções disponíveis */}
+      {/* Funções disponíveis (cards) - Mantido igual */}
       {userCan("read:roles") && (
         <Card>
           <CardHeader>
@@ -295,7 +373,7 @@ export default function UsersPage() {
           </CardContent>
         </Card>
       )}
-
+      {/* Botões e Modal - Mantidos iguais */}
       {userCan("create:roles") && (
         <div className="flex justify-end mt-6 mb-6">
           <Button onClick={handleAddUser} className="gap-2">
