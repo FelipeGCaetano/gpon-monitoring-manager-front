@@ -225,6 +225,7 @@ export default function ContainersPage() {
                     <SortableHead label="Imagem" sortKey="image" />
                     <SortableHead label="Status" sortKey="status" />
                     <SortableHead label="Criado em" sortKey="createdAt" />
+                    <SortableHead label="Atualizado em" sortKey="updatedAt" />
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -254,6 +255,7 @@ export default function ContainersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm">{formatDate(container.createdAt)}</TableCell>
+                        <TableCell className="text-sm">{formatDate(container.updatedAt)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             {userCan("read:container") && (

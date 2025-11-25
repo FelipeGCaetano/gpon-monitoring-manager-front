@@ -131,6 +131,7 @@ export interface Container {
   volumeMapping: VolumeMapping[]
   networkMapping?: NetworkMapping
   createdAt: Date
+  updatedAt: Date
 }
 
 export interface ProjectService {
