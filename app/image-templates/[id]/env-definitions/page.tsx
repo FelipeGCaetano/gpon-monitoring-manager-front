@@ -96,7 +96,7 @@ export default function EnvDefinitionsPage() {
             const payload = { key: row.key, isRequired: row.isRequired }
             if (row.isNew) {
                 // Criar
-                await apiClient.createEnvDefinitions(templateId, payload)
+                await apiClient.createEnvDefinitions(templateId, [payload])
                 toast.success(`Variável "${row.key}" criada.`)
             } else {
                 // Atualizar
