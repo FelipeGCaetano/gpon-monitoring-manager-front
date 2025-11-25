@@ -6,17 +6,35 @@ import { CreateContainerModal } from "@/components/modals/containers/create-cont
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-// Importar o Input
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 import { Container as ContainerType } from "@/lib/types"
-// Adicionar SearchIcon se quiser usar (opcional, aqui usei apenas o Input simples)
-import { ArrowUpDown, Eye, Loader2, Pause, Play, Plus, RefreshCw, Search, Trash2 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import {
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "../auth-context"
 
-// ✅ Função de data atualizada com hora/minuto/segundo
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return "N/A"
   return new Date(dateString).toLocaleString("pt-BR", {
@@ -37,11 +55,18 @@ type SortConfig = {
 export default function ContainersPage() {
   const { userCan, isAuthLoading } = useAuth()
 
+  // Estados de Dados
   const [containers, setContainers] = useState<ContainerType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null)
 
-  // ✅ Novo estado para a busca
+  // Estados de Paginação (Controlados pela API)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // Estados Locais (Busca e Ordenação)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
@@ -49,14 +74,28 @@ export default function ContainersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  const fetchContainers = async () => {
+  // ✅ Busca apenas Paginada (Sem enviar search/sort para API)
+  const fetchContainers = useCallback(async () => {
     setIsLoading(true)
     if (userCan("read:containers")) {
       try {
-        const data = await apiClient.getContainers()
-        setContainers(data || [])
+        // Envia apenas page e limit
+        const data: any = await apiClient.getContainers({page, limit})
+
+        if (data && data.items) {
+          setContainers(data.items)
+          setTotalPages(data.totalPages)
+          setTotalItems(data.totalItems)
+        } else if (Array.isArray(data)) {
+          setContainers(data)
+          setTotalPages(1)
+          setTotalItems(data.length)
+        } else {
+          setContainers([])
+        }
       } catch (error) {
         console.error("Falha ao buscar containers:", error)
+        setContainers([])
       } finally {
         setIsLoading(false)
       }
@@ -64,30 +103,20 @@ export default function ContainersPage() {
       setContainers([])
       setIsLoading(false)
     }
-  }
+  }, [userCan, page, limit]) // Removemos search/sort das dependências do fetch
 
   useEffect(() => {
     if (isAuthLoading) return
-    if (!isAuthLoading && isLoading) fetchContainers()
-  }, [isAuthLoading, userCan, isLoading])
+    fetchContainers()
+  }, [isAuthLoading, fetchContainers])
 
-  const handleSort = (key: string) => {
-    setSortConfig((current) => {
-      if (current?.key === key) {
-        return { key, direction: current.direction === "asc" ? "desc" : "asc" }
-      }
-      return { key, direction: "asc" }
-    })
-  }
-
-  // ✅ Lógica atualizada: Filtro + Ordenação
+  // ✅ Lógica Restaurada: Filtro e Ordenação Local (aplica apenas na página atual)
   const filteredAndSortedContainers = useMemo(() => {
-    // 1. Filtragem
+    // 1. Filtragem Local
     let result = containers.filter((container) => {
       if (!searchQuery) return true
 
       const query = searchQuery.toLowerCase()
-      // Verifica Nome, Imagem ou Status
       return (
         container.name.toLowerCase().includes(query) ||
         container.imageTemplate.image.toLowerCase().includes(query) ||
@@ -95,7 +124,7 @@ export default function ContainersPage() {
       )
     })
 
-    // 2. Ordenação (aplica na lista já filtrada)
+    // 2. Ordenação Local
     if (sortConfig !== null) {
       result.sort((a, b) => {
         let aValue: any
@@ -118,7 +147,16 @@ export default function ContainersPage() {
       })
     }
     return result
-  }, [containers, sortConfig, searchQuery]) // Adicionado searchQuery nas dependências
+  }, [containers, sortConfig, searchQuery])
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key) {
+        return { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      }
+      return { key, direction: "asc" }
+    })
+  }
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
@@ -129,7 +167,7 @@ export default function ContainersPage() {
     }
   }
 
-  // Funções de ação (sem alterações)
+  // Funções de ação
   const handleViewDetails = (container: ContainerType) => {
     setSelectedContainer(container)
     setModalOpen(true)
@@ -200,24 +238,56 @@ export default function ContainersPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Containers</CardTitle>
-            <CardDescription>Monitorar e gerenciar todos os containers em execução</CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <CardTitle>Lista de Containers</CardTitle>
+                <CardDescription>Monitorar e gerenciar todos os containers em execução</CardDescription>
+              </div>
+
+              {userCan("create:containers") && (
+                <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Novo Container
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            {/* ✅ Barra de Pesquisa */}
-            <div className="flex items-center mb-4">
+            {/* Controles de Filtro e Limite */}
+            <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-end md:items-center">
               <div className="relative w-full max-w-sm">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Filtrar por nome, imagem ou status..."
+                  placeholder="Filtrar nesta página..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8"
                 />
               </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Itens por pág:</span>
+                <Select
+                  value={String(limit)}
+                  onValueChange={(val) => {
+                    setLimit(Number(val))
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-[70px]">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -231,16 +301,17 @@ export default function ContainersPage() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <LoadingRow cols={5} />
+                    <LoadingRow cols={6} />
                   ) : filteredAndSortedContainers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         {searchQuery
-                          ? "Nenhum container encontrado para sua busca."
+                          ? "Nenhum container encontrado para sua busca nesta página."
                           : "Nenhum container encontrado."}
                       </TableCell>
                     </TableRow>
                   ) : (
+                    // ✅ Usando filteredAndSortedContainers ao invés de containers direto
                     filteredAndSortedContainers.map((container) => (
                       <TableRow key={container.id}>
                         <TableCell className="font-medium">{container.name}</TableCell>
@@ -301,17 +372,54 @@ export default function ContainersPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Rodapé de Paginação */}
+            <div className="flex items-center justify-between space-x-2 py-4">
+              <div className="text-sm text-muted-foreground">
+                Total de {totalItems} registro(s).
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="text-sm font-medium mx-2">
+                  Página {page} de {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(1)}
+                  disabled={page === 1 || isLoading}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1 || isLoading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || isLoading}
+                >
+                  Próximo
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(totalPages)}
+                  disabled={page === totalPages || isLoading}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
-
-        {userCan("create:containers") && (
-          <div className="flex justify-end mt-6">
-            <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="w-4 h-4" />
-              Novo Container
-            </Button>
-          </div>
-        )}
       </div>
 
       {selectedContainer && (

@@ -11,14 +11,31 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-// Adicionado Input
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 import type { Role, User } from "@/lib/types"
-// Adicionado ArrowUpDown e Search
-import { ArrowUpDown, Edit2, Loader2, Plus, Search, Shield, Trash2 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import {
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Edit2,
+  Loader2,
+  Plus,
+  Search,
+  Shield,
+  Trash2
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "../auth-context"
 
@@ -78,7 +95,7 @@ const defaultFormData: UserFormData = {
 export default function UsersPage() {
   const { userCan, isAuthLoading } = useAuth()
 
-  // --- Estados ---
+  // --- Estados de Dados ---
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -87,23 +104,43 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState<UserFormData>(defaultFormData)
 
-  // ✅ Estados de Busca e Ordenação
+  // --- Estados de Paginação ---
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // --- Estados Locais (Busca e Ordenação) ---
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
   // --- Buscar dados da API ---
-  const fetchUsersAndRoles = async () => {
+  const fetchUsersAndRoles = useCallback(async () => {
     setIsLoading(true)
     try {
       const canReadUsers = userCan("read:users:all")
       const canReadRoles = userCan("read:roles")
 
+      // Assumindo que getAllUsers aceita page e limit, mas getRoles não precisa
       const [usersResponse, rolesResponse] = await Promise.all([
-        canReadUsers ? apiClient.getAllUsers() : Promise.resolve({ items: [] }),
+        canReadUsers ? apiClient.getAllUsers({page, limit}) : Promise.resolve({ items: [], totalPages: 1, totalItems: 0 }),
         canReadRoles ? apiClient.getRoles() : Promise.resolve([]),
       ])
 
-      setUsers(usersResponse.items || [])
+      // Verifica se a resposta é paginada ou array simples (fallback)
+      const userData: any = usersResponse
+      if (userData && userData.items) {
+        setUsers(userData.items)
+        setTotalPages(userData.totalPages)
+        setTotalItems(userData.totalItems)
+      } else if (Array.isArray(userData)) {
+        setUsers(userData)
+        setTotalPages(1)
+        setTotalItems(userData.length)
+      } else {
+        setUsers([])
+      }
+
       setRoles(rolesResponse || [])
 
     } catch (error) {
@@ -112,14 +149,14 @@ export default function UsersPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [userCan, page, limit])
 
   useEffect(() => {
     if (isAuthLoading) return
-    if (!isAuthLoading && isLoading) fetchUsersAndRoles()
-  }, [isAuthLoading, userCan, isLoading])
+    fetchUsersAndRoles()
+  }, [isAuthLoading, fetchUsersAndRoles])
 
-  // --- Lógica de Ordenação e Filtro ---
+  // --- Lógica de Ordenação e Filtro (Local, na página atual) ---
   const handleSort = (key: string) => {
     setSortConfig((current) => {
       if (current?.key === key) {
@@ -130,7 +167,7 @@ export default function UsersPage() {
   }
 
   const filteredAndSortedUsers = useMemo(() => {
-    // 1. Filtragem
+    // 1. Filtragem Local
     let result = users.filter((user) => {
       if (!searchTerm) return true
       const term = searchTerm.toLowerCase()
@@ -142,7 +179,7 @@ export default function UsersPage() {
       )
     })
 
-    // 2. Ordenação
+    // 2. Ordenação Local
     if (sortConfig !== null) {
       result.sort((a, b) => {
         let aValue: any
@@ -201,7 +238,8 @@ export default function UsersPage() {
     if (window.confirm("Tem certeza que deseja deletar este usuário?")) {
       try {
         await apiClient.deleteUser(userId)
-        setUsers((prev) => prev.filter((u) => u.id !== userId))
+        // Se deletar, recarrega a página para manter consistência da paginação
+        fetchUsersAndRoles()
       } catch (error) {
         console.error("Falha ao deletar usuário:", error)
       }
@@ -256,20 +294,43 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Usuários do Sistema</CardTitle>
-          <CardDescription>Total de {filteredAndSortedUsers.length} usuários</CardDescription>
+          <CardDescription>Total de {totalItems} usuários cadastrados</CardDescription>
         </CardHeader>
         <CardContent>
 
-          {/* ✅ Barra de Pesquisa */}
-          <div className="flex items-center mb-4">
+          {/* Filtros e Controles */}
+          <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-end md:items-center">
+            {/* Barra de Pesquisa */}
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome, email ou função..."
+                placeholder="Filtrar nesta página..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8"
               />
+            </div>
+
+            {/* Seletor de Limite */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Itens por pág:</span>
+              <Select
+                value={String(limit)}
+                onValueChange={(val) => {
+                  setLimit(Number(val))
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-[70px]">
+                  <SelectValue placeholder="10" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -296,7 +357,7 @@ export default function UsersPage() {
                 ) : filteredAndSortedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                      {searchTerm ? "Nenhum usuário encontrado para a busca." : "Nenhum usuário cadastrado."}
+                      {searchTerm ? "Nenhum usuário encontrado para a busca nesta página." : "Nenhum usuário encontrado."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -337,6 +398,52 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Rodapé de Paginação */}
+          <div className="flex items-center justify-between space-x-2 py-4 border-t border-border mt-4">
+            <div className="text-sm text-muted-foreground">
+              Total de {totalItems} registro(s).
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="text-sm font-medium mx-2">
+                Página {page} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(1)}
+                disabled={page === 1 || isLoading}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || isLoading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || isLoading}
+              >
+                Próximo
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages || isLoading}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -373,6 +480,7 @@ export default function UsersPage() {
           </CardContent>
         </Card>
       )}
+
       {/* Botões e Modal - Mantidos iguais */}
       {userCan("create:roles") && (
         <div className="flex justify-end mt-6 mb-6">
@@ -438,6 +546,19 @@ export default function UsersPage() {
                   <option key={role.id} value={role.name}>{role.name}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">
+                {editingUser ? "Nova Senha (deixe em branco para manter)" : "Senha"}
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
+                placeholder="******"
+                disabled={isSubmitting}
+              />
             </div>
             <Button onClick={handleSaveUser} className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (

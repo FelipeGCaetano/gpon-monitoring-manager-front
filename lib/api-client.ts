@@ -98,8 +98,8 @@ export const apiClient = {
     return data
   },
 
-  async getAllUsers() {
-    return fetchWithAuth("/users/all")
+  async getAllUsers({ page, limit }: {  page: number, limit: number }) {
+    return fetchWithAuth(`/users/all?page=${page}&limit=${limit}`)
   },
 
   async createUser(user: any) {
@@ -224,8 +224,8 @@ export const apiClient = {
     })
   },
 
-  async getContainers() {
-    return fetchWithAuth("/containers")
+  async getContainers({ page, limit }: {  page: number, limit: number }) {
+    return fetchWithAuth(`/containers?page=${page}&limit=${limit}`)
   },
 
   async getContainerById(id: string) {
