@@ -42,6 +42,12 @@ interface FormNetworkConfig {
     ip: string
 }
 
+interface FormDomainConfig {
+    domain: string;
+    targetPort: string;
+    sslEnable: boolean;
+}
+
 interface CreateContainerModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -64,6 +70,7 @@ const randomUUID = (): string => {
 const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
 const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
 const defaultNetwork: FormNetworkConfig = { name: "", ip: "" }
+const defaultDomain: FormDomainConfig = { domain: "", targetPort: "", sslEnable: false }
 
 export function CreateContainerModal({
     open,
@@ -86,6 +93,7 @@ export function CreateContainerModal({
     const [ports, setPorts] = useState<FormPortMap[]>([createDefaultPort()])
     const [volumes, setVolumes] = useState<FormVolumeMap[]>([createDefaultVolume()])
     const [network, setNetwork] = useState<FormNetworkConfig>(defaultNetwork)
+    const [domainConfig, setDomainConfig] = useState<FormDomainConfig>(defaultDomain) // Novo estado para domínio
 
     const resetForm = () => {
         setName("")
@@ -95,6 +103,7 @@ export function CreateContainerModal({
         setPorts([createDefaultPort()])
         setVolumes([createDefaultVolume()])
         setNetwork(defaultNetwork)
+        setDomainConfig(defaultDomain) // Resetar o novo estado
         setIsSubmitting(false)
     }
 
@@ -310,8 +319,28 @@ export function CreateContainerModal({
         return { type, publicUrl, privateUrl };
     }, [selectedImage, imageTemplates, envVars, ports, network.ip, name]);
 
+    // Função auxiliar para copiar
     const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
+        // Usamos navigator.clipboard.writeText para melhor suporte em React
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text);
+        } else {
+            // Fallback para ambientes não seguros (como iframes)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Falha ao copiar:', err);
+            }
+            document.body.removeChild(textArea);
+        }
         toast.success("Copiado!");
     }
 
@@ -319,13 +348,15 @@ export function CreateContainerModal({
         e.preventDefault()
         setIsSubmitting(true)
 
+        // 1. Validação de Variáveis de Ambiente
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && !env.value)
         if (missingRequiredEnvs.length > 0) {
-            alert(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
+            toast.error(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
             setIsSubmitting(false)
             return
         }
 
+        // 2. Validação de Conflito de Portas
         const portConflicts = ports.filter(p => p.publicPort && usedPorts.includes(parseInt(p.publicPort, 10)));
         if (portConflicts.length > 0) {
             toast.error(`As seguintes portas públicas já estão em uso: ${portConflicts.map(p => p.publicPort).join(", ")}. Por favor, escolha outras.`);
@@ -333,6 +364,24 @@ export function CreateContainerModal({
             return;
         }
 
+        // 3. Validação de Domínio e Porta de Destino
+        let finalDomainConfig: { domain: string, targetPort: number, sslEnable: boolean } | undefined = undefined;
+        if (domainConfig.domain.trim()) {
+            const targetPortNum = parseInt(domainConfig.targetPort, 10);
+            if (!domainConfig.targetPort || isNaN(targetPortNum) || targetPortNum <= 0 || targetPortNum > 65535) {
+                toast.error("A Porta de Destino (Domínio) é obrigatória e deve ser um número de porta válido (1-65535) se um domínio for fornecido.");
+                setIsSubmitting(false);
+                return;
+            }
+
+            finalDomainConfig = {
+                domain: domainConfig.domain.trim(),
+                targetPort: targetPortNum,
+                sslEnable: domainConfig.sslEnable,
+            };
+        }
+
+        // 4. Montagem dos Payloads
         const finalEnvVars = envVars.filter((env) => env.key).map(({ key, value }) => ({ key, value }))
         const finalPorts = ports
             .filter((p) => p.privatePort && p.publicPort)
@@ -344,7 +393,7 @@ export function CreateContainerModal({
 
         const selectedTemplate = imageTemplates.find(t => t.id === selectedImage);
         if (!selectedTemplate) {
-            alert("Template de imagem selecionado não encontrado. Recarregue a página.");
+            toast.error("Template de imagem selecionado não encontrado. Recarregue a página.");
             setIsSubmitting(false);
             return;
         }
@@ -355,6 +404,7 @@ export function CreateContainerModal({
                 name,
                 image: imageName,
                 instanceId: selectedInstance,
+                domain: finalDomainConfig, // Novo campo de domínio
                 envVariables: finalEnvVars.length > 0 ? finalEnvVars : undefined,
                 ports: finalPorts.length > 0 ? finalPorts : undefined,
                 volumes: finalVolumes.length > 0 ? finalVolumes : undefined,
@@ -475,6 +525,54 @@ export function CreateContainerModal({
         )
     }
 
+    // Novo renderizador para a aba de Domínio
+    const renderDomainInputs = () => {
+        return (
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Domínio/Hostname</label>
+                    <Input
+                        value={domainConfig.domain}
+                        onChange={(e) => setDomainConfig(prev => ({ ...prev, domain: e.target.value }))}
+                        placeholder="Ex: app.meuservico.com.br (Opcional)"
+                        disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-muted-foreground">O domínio será configurado para rotear o tráfego externo para este container.</p>
+                </div>
+                {domainConfig.domain.trim() && (
+                    <>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium flex items-center gap-1">
+                                Porta de Destino (Host) <span className="text-destructive">*</span>
+                            </label>
+                            <Input
+                                type="number"
+                                value={domainConfig.targetPort}
+                                onChange={(e) => setDomainConfig(prev => ({ ...prev, targetPort: e.target.value }))}
+                                placeholder="Ex: 3000 ou 3333"
+                                disabled={isSubmitting}
+                            />
+                            <p className="text-xs text-muted-foreground">A porta pública do host que receberá o tráfego do domínio (Ex: 3000).</p>
+                        </div>
+                        <div className="flex items-center space-x-2 p-3 rounded-md border bg-secondary/30">
+                            <input
+                                type="checkbox"
+                                id="ssl-enable"
+                                checked={domainConfig.sslEnable}
+                                onChange={(e) => setDomainConfig(prev => ({ ...prev, sslEnable: e.target.checked }))}
+                                disabled={isSubmitting}
+                                className="rounded text-primary focus:ring-primary h-4 w-4 border-gray-300"
+                            />
+                            <label htmlFor="ssl-enable" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                                Habilitar SSL/TLS (HTTPS) <Lock className="w-4 h-4 text-emerald-600" />
+                            </label>
+                        </div>
+                    </>
+                )}
+            </div>
+        )
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
@@ -493,12 +591,13 @@ export function CreateContainerModal({
                     <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
                         <div className="overflow-y-auto px-1 py-4">
                             <Tabs defaultValue="general" className="space-y-4">
-                                <TabsList className="grid grid-cols-5 w-full">
+                                <TabsList className="grid grid-cols-6 w-full"> {/* Aumentado para 6 colunas */}
                                     <TabsTrigger value="general">Geral</TabsTrigger>
                                     <TabsTrigger value="ports">Portas</TabsTrigger>
                                     <TabsTrigger value="environment">Ambiente</TabsTrigger>
                                     <TabsTrigger value="volumes">Volumes</TabsTrigger>
                                     <TabsTrigger value="network">Rede</TabsTrigger>
+                                    <TabsTrigger value="domain">Domínio</TabsTrigger> 
                                 </TabsList>
 
                                 <TabsContent value="general" className="space-y-4">
@@ -659,6 +758,13 @@ export function CreateContainerModal({
                                         />
                                     </div>
                                 </TabsContent>
+
+                                {/* Nova aba de Domínio */}
+                                <TabsContent value="domain" className="space-y-4">
+                                    {renderDomainInputs()}
+                                </TabsContent>
+                                {/* Fim da nova aba */}
+
                             </Tabs>
                         </div>
 
