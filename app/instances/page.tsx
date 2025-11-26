@@ -245,6 +245,10 @@ export default function InstancesPage() {
                             <Box className="w-3 h-3" />
                             {instance.containers.length} Container(s)
                           </Badge>
+                          <Badge variant="secondary" className="flex items-center gap-1.5">
+                            <Box className="w-3 h-3" />
+                            {instance.domains.length} Dominios(s)
+                          </Badge>                          
                         </div>
 
                         {/* Coluna 3: Ações (com permissões) */}

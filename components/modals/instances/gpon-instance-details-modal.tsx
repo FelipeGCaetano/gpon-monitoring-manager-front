@@ -88,7 +88,7 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{instance?.name}</DialogTitle>
           <DialogDescription>
@@ -96,7 +96,7 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-max">
           {/* Adicionado a aba 'domains' e ajustado o grid para 4 colunas */}
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
@@ -168,7 +168,7 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                     ) : (
                       instance.containers.map((container) => (
                         <TableRow key={container.id}>
-                          <TableCell className="font-medium whitespace-normal break-words align-top">
+                          <TableCell className="font-medium whitespace-normal wrap-break-words align-top">
                             {container.name}
                           </TableCell>
                           <TableCell className="font-mono text-xs whitespace-normal break-all align-top">
@@ -192,8 +192,8 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
           </TabsContent>
 
           {/* Domínios Tab (NOVA) */}
-          <TabsContent value="domains" className="space-y-4 mt-4">
-            <Card>
+          <TabsContent value="domains" className="space-y-4 mt-4 w-full">
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle className="text-sm">Configurações de Domínio (Reverse Proxy)</CardTitle>
                 <CardDescription>

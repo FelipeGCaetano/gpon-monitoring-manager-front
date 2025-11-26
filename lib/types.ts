@@ -55,6 +55,7 @@ export interface GponInstance {
   client: Client
   modules: Module[]
   containers: Container[]
+  domains: Domain[]
   createdAt: Date
 }
 
@@ -122,6 +123,7 @@ export interface Domain {
   domain: string;
   targetPort: number;
   sslEnabled: boolean;
+  container: Container;
 }
 
 export interface Container {
