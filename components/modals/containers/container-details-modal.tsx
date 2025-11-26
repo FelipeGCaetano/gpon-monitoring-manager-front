@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
 import { Container } from "@/lib/types"
-import { Ban, HardDrive, KeyRound, Loader2, Network, RefreshCw, Terminal, X } from "lucide-react"
+import { Ban, Globe, HardDrive, KeyRound, Loader2, Lock, Network, RefreshCw, Terminal, Unlock, X } from "lucide-react"; // Adicionado Globe e Lock
 import { useEffect, useRef, useState } from "react"
 import { io, Socket } from "socket.io-client"
 import { toast } from "sonner"
@@ -31,6 +31,59 @@ const formatDate = (dateString: Date | string) => {
     minute: "2-digit",
   })
 }
+
+// NOVO: Renderiza a aba de Domínio
+const DomainTabContent = ({ container }: { container: Container }) => {
+  if (!container.domain) {
+    return (
+      <div className="text-center text-muted-foreground py-20 flex flex-col items-center gap-4">
+        <Globe className="w-10 h-10" />
+        <p>Nenhuma configuração de domínio encontrada para este container.</p>
+      </div>
+    )
+  }
+
+  const { domain, targetPort, sslEnabled } = container.domain;
+
+  return (
+    <Card className="space-y-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Globe className="w-4 h-4 text-primary" />
+          Roteamento de Domínio
+        </CardTitle>
+        <CardDescription>
+          Este container está exposto publicamente através do domínio.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1 p-3 bg-muted/50 rounded-lg border">
+            <span className="text-xs text-muted-foreground">Domínio Configurado</span>
+            <p className="text-sm font-medium font-mono break-all">{domain}</p>
+          </div>
+          <div className="space-y-1 p-3 bg-muted/50 rounded-lg border">
+            <span className="text-xs text-muted-foreground">Protocolo</span>
+            <p className="text-sm font-medium flex items-center gap-2">
+              {sslEnabled ? (
+                <>
+                  <Lock className="w-4 h-4 text-emerald-500" />
+                  HTTPS (SSL Ativo)
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4 text-red-500" />
+                  HTTP (Sem SSL)
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 
 export default function ContainerDetailsModal({ container, isOpen, onClose }: ContainerDetailsModalProps) {
   const [fullContainer, setFullContainer] = useState<Container | null>(null)
@@ -154,6 +207,27 @@ export default function ContainerDetailsModal({ container, isOpen, onClose }: Co
 
   if (!isOpen) return null
 
+  // Determina se a aba de Domínio deve ser mostrada
+  const hasDomainConfig = fullContainer?.domain !== undefined && fullContainer.domain !== null;
+  const domainTabTrigger = hasDomainConfig ? (
+    <TabsTrigger value="domain" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2">Domínio</TabsTrigger>
+  ) : null;
+  const domainTabContent = hasDomainConfig && fullContainer ? (
+    <TabsContent value="domain" className="space-y-4 mt-4">
+      <DomainTabContent container={fullContainer} />
+    </TabsContent>
+  ) : null;
+
+  // Cria a lista de abas para o TabsList
+  const tabValues = [
+    { value: "overview", label: "Visão Geral" },
+    { value: "environment", label: "Ambiente" },
+    { value: "mappings", label: "Mapeamentos" },
+    ...(hasDomainConfig ? [{ value: "domain", label: "Domínio" }] : []),
+    { value: "logs", label: "Registros" },
+  ];
+
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-border">
@@ -190,10 +264,15 @@ export default function ContainerDetailsModal({ container, isOpen, onClose }: Co
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 h-full flex flex-col">
               <TabsList className="w-full justify-start border-b rounded-none px-0 bg-transparent h-auto">
-                <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2">Visão Geral</TabsTrigger>
-                <TabsTrigger value="environment" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2">Ambiente</TabsTrigger>
-                <TabsTrigger value="mappings" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2">Mapeamentos</TabsTrigger>
-                <TabsTrigger value="logs" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2">Registros</TabsTrigger>
+                {tabValues.map(tab => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               {/* Overview Tab */}
@@ -293,6 +372,9 @@ export default function ContainerDetailsModal({ container, isOpen, onClose }: Co
                   </Card>
                 </div>
               </TabsContent>
+
+              {/* Domínio Tab (Condicional) */}
+              {domainTabContent}
 
               {/* Logs Tab (INTEGRADO COM SOCKET) */}
               <TabsContent value="logs" className="flex-1 flex flex-col min-h-[400px] mt-4 data-[state=active]:flex">

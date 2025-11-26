@@ -117,6 +117,13 @@ export interface NetworkMapping {
   containerId: string
 }
 
+export interface Domain {
+  id: string;
+  domain: string;
+  targetPort: number;
+  sslEnabled: boolean;
+}
+
 export interface Container {
   id: string
   gponInstanceId: string
@@ -126,6 +133,7 @@ export interface Container {
   imageTemplate: ImageTemplate
   lastRestart?: Date
   status: ContainerStatus
+  domain: Domain
   portMapping: PortMapping[]
   envVariables: ContainerEnv[]
   volumeMapping: VolumeMapping[]

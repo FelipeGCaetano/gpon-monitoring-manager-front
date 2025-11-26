@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GponInstance as Instance } from "@/lib/types"; // Importando o tipo
-import { Blocks } from "lucide-react"; // 1. Importar Blocks
+import { Blocks, Globe, Lock } from "lucide-react"; // 1. Importar Blocks, Globe e Lock
 import { useState } from "react"
 
 interface GponInstanceDetailsModalProps {
@@ -15,7 +15,6 @@ interface GponInstanceDetailsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-// ... (helpers: formatDate, getStatusColor, getTypeColor, getTypeName) ...
 // Helper para formatar data
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return "N/A"
@@ -53,10 +52,39 @@ const getTypeName = (type: string) => {
   }
 }
 
+// Tipo temporário para a visualização de Domínios
+interface ConsolidatedDomain {
+  domain: string;
+  targetPort: number;
+  sslEnable: boolean;
+  containerName: string;
+}
+
+// Função para extrair e consolidar domínios de todos os containers
+const getConsolidatedDomains = (instance: Instance): ConsolidatedDomain[] => {
+  if (!instance || !instance.containers) return [];
+
+  return instance.containers
+    .map(container => {
+      if (container.domain) {
+        return {
+          domain: container.domain.domain,
+          targetPort: container.domain.targetPort,
+          sslEnable: container.domain.sslEnabled,
+          containerName: container.name, // Nome do container
+        };
+      }
+      return null;
+    })
+    .filter((domain): domain is ConsolidatedDomain => domain !== null);
+};
+
 export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponInstanceDetailsModalProps) {
   const [activeTab, setActiveTab] = useState("overview")
 
   if (!instance) return null
+
+  const consolidatedDomains = getConsolidatedDomains(instance);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,10 +97,12 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          {/* Adicionado a aba 'domains' e ajustado o grid para 4 colunas */}
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="containers">Containers</TabsTrigger>
-            <TabsTrigger value="modules">Módulos Licenciados</TabsTrigger>
+            <TabsTrigger value="domains">Domínios</TabsTrigger> {/* Nova Aba */}
+            <TabsTrigger value="modules">Módulos</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab (Dados Reais) */}
@@ -90,7 +120,6 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                   <span className="text-muted-foreground">Cliente</span>
                   <span className="font-medium">{instance?.client?.name}</span>
                 </div>
-                {/* 2. Adicionar linha do Projeto */}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Projeto</span>
                   <span className="font-medium flex items-center gap-2">
@@ -111,9 +140,7 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
             </Card>
           </TabsContent>
 
-          {/* ... (Abas 'containers' e 'modules' permanecem as mesmas) ... */}
-
-          {/* Containers Tab (Nova) */}
+          {/* Containers Tab */}
           <TabsContent value="containers" className="space-y-4 mt-4">
             <Card>
               <CardHeader>
@@ -141,17 +168,12 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
                     ) : (
                       instance.containers.map((container) => (
                         <TableRow key={container.id}>
-                          {/* 1. Adicionado whitespace-normal e break-words para o nome quebrar linha se tiver espaços */}
                           <TableCell className="font-medium whitespace-normal break-words align-top">
                             {container.name}
                           </TableCell>
-
-                          {/* 2. Adicionado break-all para a imagem. Como imagens docker não tem espaço, 
-                              o break-all força a quebra em qualquer caractere para não gerar barra de rolagem */}
                           <TableCell className="font-mono text-xs whitespace-normal break-all align-top">
                             {container.imageTemplate.image}
                           </TableCell>
-
                           <TableCell className="align-top">
                             <Badge
                               variant="outline"
@@ -169,7 +191,64 @@ export function GponInstanceDetailsModal({ instance, open, onOpenChange }: GponI
             </Card>
           </TabsContent>
 
-          {/* Módulos Tab (Nova) */}
+          {/* Domínios Tab (NOVA) */}
+          <TabsContent value="domains" className="space-y-4 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Configurações de Domínio (Reverse Proxy)</CardTitle>
+                <CardDescription>
+                  Total de {consolidatedDomains.length} domínio(s) configurado(s).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40%]">Domínio</TableHead>
+                      <TableHead className="w-[30%]">Container de Destino</TableHead>
+                      <TableHead className="w-[15%]">Porta Interna</TableHead>
+                      <TableHead className="w-[15%]">SSL</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {consolidatedDomains.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          Nenhum domínio configurado para esta instância.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      consolidatedDomains.map((domain, index) => (
+                        <TableRow key={domain.domain}>
+                          <TableCell className="font-medium flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-primary/80" />
+                            {domain.domain}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {domain.containerName}
+                          </TableCell>
+                          <TableCell className="font-medium text-center">
+                            {domain.targetPort}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {domain.sslEnable ? (
+                              <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600">
+                                <Lock className="w-3 h-3 mr-1" /> HTTPS
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">HTTP</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Módulos Tab */}
           <TabsContent value="modules" className="space-y-4 mt-4">
             <Card>
               <CardHeader>
