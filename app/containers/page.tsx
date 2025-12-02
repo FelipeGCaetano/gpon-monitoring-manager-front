@@ -6,7 +6,17 @@ import { CreateContainerModal } from "@/components/modals/containers/create-cont
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -70,9 +80,15 @@ export default function ContainersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
+  // Estados de Modais
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  // Estados para Deleção
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [containerToDelete, setContainerToDelete] = useState<string | null>(null)
+  const [deleteVolumes, setDeleteVolumes] = useState(false)
 
   // ✅ Busca apenas Paginada (Sem enviar search/sort para API)
   const fetchContainers = useCallback(async () => {
@@ -80,7 +96,7 @@ export default function ContainersPage() {
     if (userCan("read:containers")) {
       try {
         // Envia apenas page e limit
-        const data: any = await apiClient.getContainers({page, limit})
+        const data: any = await apiClient.getContainers({ page, limit })
 
         if (data && data.items) {
           setContainers(data.items)
@@ -103,7 +119,7 @@ export default function ContainersPage() {
       setContainers([])
       setIsLoading(false)
     }
-  }, [userCan, page, limit]) // Removemos search/sort das dependências do fetch
+  }, [userCan, page, limit])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -199,12 +215,26 @@ export default function ContainersPage() {
     }
   }
 
-  const handleDeleteContainer = async (containerId: string) => {
-    if (!window.confirm("Tem certeza que deseja deletar este container?")) return
-    setIsSubmitting(containerId)
+  // 1. Abre o modal de deleção
+  const handleOpenDeleteModal = (containerId: string) => {
+    setContainerToDelete(containerId)
+    setDeleteVolumes(false) // Resetar o checkbox
+    setIsDeleteModalOpen(true)
+  }
+
+  // 2. Confirma a deleção com a opção de volumes
+  const handleConfirmDelete = async () => {
+    if (!containerToDelete) return
+
+    setIsSubmitting(containerToDelete)
     try {
-      await apiClient.deleteContainer(containerId)
+      // Passa o ID e o booleano deleteVolumes
+      // O apiClient deve montar a URL como: /containers/{id}?deleteVolumes={deleteVolumes}
+      await apiClient.deleteContainer(containerToDelete, deleteVolumes)
+
       await fetchContainers()
+      setIsDeleteModalOpen(false)
+      setContainerToDelete(null)
     } catch (error) {
       console.error("Falha ao deletar o container:", error)
     } finally {
@@ -311,7 +341,6 @@ export default function ContainersPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    // ✅ Usando filteredAndSortedContainers ao invés de containers direto
                     filteredAndSortedContainers.map((container) => (
                       <TableRow key={container.id}>
                         <TableCell className="font-medium">{container.name}</TableCell>
@@ -360,7 +389,13 @@ export default function ContainersPage() {
                               </Button>
                             )}
                             {userCan("delete:container") && (
-                              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDeleteContainer(container.id)} disabled={!!isSubmitting}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleOpenDeleteModal(container.id)}
+                                disabled={!!isSubmitting}
+                              >
                                 {isSubmitting === container.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                               </Button>
                             )}
@@ -434,6 +469,47 @@ export default function ContainersPage() {
         onOpenChange={setIsCreateModalOpen}
         onContainerCreated={fetchContainers}
       />
+
+      {/* Modal de Exclusão */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Container</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover este container? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center space-x-2 py-4 bg-muted/50 p-4 rounded-md border">
+            <Checkbox
+              id="deleteVolumes"
+              checked={deleteVolumes}
+              onCheckedChange={(checked) => setDeleteVolumes(checked as boolean)}
+            />
+            <Label
+              htmlFor="deleteVolumes"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Excluir também os volumes associados (dados persistentes)
+            </Label>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={!!isSubmitting}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={!!isSubmitting}
+              className="gap-2"
+            >
+              {isSubmitting === containerToDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ProtectedLayout>
   )
 }

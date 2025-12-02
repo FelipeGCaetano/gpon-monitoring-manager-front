@@ -246,8 +246,8 @@ export const apiClient = {
     })
   },
 
-  async deleteContainer(id: string) {
-    return fetchWithAuth(`/containers/${id}`, {
+  async deleteContainer(id: string, deleteVolumes: boolean) {
+    return fetchWithAuth(`/containers/${id}?deleteVolumes=${deleteVolumes}`, {
       method: "DELETE",
     })
   },
