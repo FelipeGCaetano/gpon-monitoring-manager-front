@@ -64,6 +64,11 @@ export interface InstanceContainerData {
     ports: { privatePort: number, publicPort: number, ip?: string }[]
     volumes: Omit<FormVolumeMap, 'id'>[]
     network: FormNetworkConfig
+    domain?: {
+        domain: string
+        targetPort: number
+        sslEnabled: boolean
+    }
 }
 
 interface CreateInstanceContainerModalProps {
