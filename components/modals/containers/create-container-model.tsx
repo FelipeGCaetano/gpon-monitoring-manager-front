@@ -36,7 +36,9 @@ interface FormVolumeMap {
     id: string;
     name: string;
     containerPath: string;
+    limitGB: string; // Novo campo
 }
+
 interface FormNetworkConfig {
     name: string
     ip: string
@@ -68,7 +70,8 @@ const randomUUID = (): string => {
 }
 
 const createDefaultPort = (): FormPortMap => ({ id: randomUUID(), privatePort: "", publicPort: "" });
-const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "" });
+// Inicializa limitGB vazio
+const createDefaultVolume = (): FormVolumeMap => ({ id: randomUUID(), name: "", containerPath: "", limitGB: "" });
 const defaultNetwork: FormNetworkConfig = { name: "", ip: "" }
 const defaultDomain: FormDomainConfig = { domain: "", targetPort: "", sslEnable: false }
 
@@ -93,7 +96,7 @@ export function CreateContainerModal({
     const [ports, setPorts] = useState<FormPortMap[]>([createDefaultPort()])
     const [volumes, setVolumes] = useState<FormVolumeMap[]>([createDefaultVolume()])
     const [network, setNetwork] = useState<FormNetworkConfig>(defaultNetwork)
-    const [domainConfig, setDomainConfig] = useState<FormDomainConfig>(defaultDomain) // Novo estado para domínio
+    const [domainConfig, setDomainConfig] = useState<FormDomainConfig>(defaultDomain)
 
     const resetForm = () => {
         setName("")
@@ -103,7 +106,7 @@ export function CreateContainerModal({
         setPorts([createDefaultPort()])
         setVolumes([createDefaultVolume()])
         setNetwork(defaultNetwork)
-        setDomainConfig(defaultDomain) // Resetar o novo estado
+        setDomainConfig(defaultDomain)
         setIsSubmitting(false)
     }
 
@@ -187,7 +190,7 @@ export function CreateContainerModal({
         }
     }
 
-    const handleVolumeChange = (id: string, field: "name" | "containerPath", value: string) => {
+    const handleVolumeChange = (id: string, field: "name" | "containerPath" | "limitGB", value: string) => {
         setVolumes(currentVolumes =>
             currentVolumes.map(vol => (vol.id === id ? { ...vol, [field]: value } : vol))
         );
@@ -205,7 +208,6 @@ export function CreateContainerModal({
 
         const img = template.image.toLowerCase();
 
-        // Helper com exclusão para garantir que pegamos a variável certa
         const getVal = (keyPart: string, exclude?: string) => {
             const found = envVars.find(e =>
                 e.key.includes(keyPart) &&
@@ -235,71 +237,52 @@ export function CreateContainerModal({
         let dbPath = "";
         let portConfig = { public: 0, private: 0 };
 
-        // --- LÓGICA POSTGRESQL ---
         if (img.includes("postgres")) {
             type = "PostgreSQL";
             protocol = "postgresql";
-
             const customUser = getVal("_USER");
-            const customPass = getVal("_PASSWORD", "ROOT"); // Busca senha que NÃO seja ROOT
-
-            // REGRA: Só usa customizado se tiver User E Senha
+            const customPass = getVal("_PASSWORD", "ROOT");
             if (customUser && customPass) {
                 user = customUser;
                 pass = customPass;
             } else {
-                // Fallback: Root
                 user = "postgres";
                 pass = getVal("_ROOT_PASSWORD") || getVal("_PASSWORD") || "senha";
             }
-
             const db = getVal("_DB") || "postgres";
             dbPath = `/${db}`;
             portConfig = getPortsConfig(5432) as any;
         }
-        // --- LÓGICA MYSQL / MARIADB ---
         else if (img.includes("mysql") || img.includes("mariadb")) {
             type = "MySQL/MariaDB";
             protocol = "mysql";
-
             const customUser = getVal("_USER");
             const customPass = getVal("_PASSWORD", "ROOT");
-
-            // REGRA: Só usa customizado se tiver User E Senha
             if (customUser && customPass) {
                 user = customUser;
                 pass = customPass;
             } else {
-                // Fallback: Root
                 user = "root";
                 pass = getVal("_ROOT_PASSWORD") || "senha";
             }
-
             const db = getVal("_DATABASE") || "";
             dbPath = `/${db}`;
             portConfig = getPortsConfig(3306) as any;
         }
-        // --- LÓGICA MONGODB ---
         else if (img.includes("mongo")) {
             type = "MongoDB";
             protocol = "mongodb";
-
             const customUser = getVal("USERNAME");
             const customPass = getVal("_PASSWORD", "ROOT");
-
-            // REGRA: Só usa customizado se tiver User E Senha
             if (customUser && customPass) {
                 user = customUser;
                 pass = customPass;
             } else {
-                // Fallback: Root
                 user = "root";
                 pass = getVal("_ROOT_PASSWORD") || "senha";
             }
-
             portConfig = getPortsConfig(27017) as any;
         }
-        // --- LÓGICA REDIS ---
         else if (img.includes("redis")) {
             type = "Redis";
             protocol = "redis";
@@ -319,13 +302,10 @@ export function CreateContainerModal({
         return { type, publicUrl, privateUrl };
     }, [selectedImage, imageTemplates, envVars, ports, network.ip, name]);
 
-    // Função auxiliar para copiar
     const copyToClipboard = (text: string) => {
-        // Usamos navigator.clipboard.writeText para melhor suporte em React
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(text);
         } else {
-            // Fallback para ambientes não seguros (como iframes)
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
@@ -348,7 +328,6 @@ export function CreateContainerModal({
         e.preventDefault()
         setIsSubmitting(true)
 
-        // 1. Validação de Variáveis de Ambiente
         const missingRequiredEnvs = envVars.filter(env => env.isRequired && !env.isGlobal && !env.value)
         if (missingRequiredEnvs.length > 0) {
             toast.error(`Por favor, preencha as variáveis obrigatórias: ${missingRequiredEnvs.map(e => e.key).join(", ")}`)
@@ -356,7 +335,6 @@ export function CreateContainerModal({
             return
         }
 
-        // 2. Validação de Conflito de Portas
         const portConflicts = ports.filter(p => p.publicPort && usedPorts.includes(parseInt(p.publicPort, 10)));
         if (portConflicts.length > 0) {
             toast.error(`As seguintes portas públicas já estão em uso: ${portConflicts.map(p => p.publicPort).join(", ")}. Por favor, escolha outras.`);
@@ -364,7 +342,6 @@ export function CreateContainerModal({
             return;
         }
 
-        // 3. Validação de Domínio e Porta de Destino
         let finalDomainConfig: { domain: string, targetPort: number, sslEnable: boolean } | undefined = undefined;
         if (domainConfig.domain.trim()) {
             const targetPortNum = parseInt(domainConfig.targetPort, 10);
@@ -381,15 +358,29 @@ export function CreateContainerModal({
             };
         }
 
-        // 4. Montagem dos Payloads
         const finalEnvVars = envVars.filter((env) => env.key).map(({ key, value }) => ({ key, value }))
+
         const finalPorts = ports
             .filter((p) => p.privatePort && p.publicPort)
             .map((p) => ({
                 privatePort: parseInt(p.privatePort, 10),
                 publicPort: parseInt(p.publicPort, 10),
             }))
-        const finalVolumes = volumes.filter((v) => v.name && v.containerPath).map(({ name, containerPath }) => ({ name, containerPath }))
+
+        // --- LÓGICA DE VOLUMES E LIMITE ---
+        const finalVolumes = volumes
+            .filter((v) => v.name && v.containerPath)
+            .map(({ name, containerPath, limitGB }) => {
+                const volumeObj: any = { name, containerPath };
+
+                // Verifica se limitGB é um número válido e maior que 0
+                const limit = parseInt(limitGB, 10);
+                if (!isNaN(limit) && limit > 0) {
+                    volumeObj.limitGB = limit;
+                }
+
+                return volumeObj;
+            });
 
         const selectedTemplate = imageTemplates.find(t => t.id === selectedImage);
         if (!selectedTemplate) {
@@ -404,7 +395,7 @@ export function CreateContainerModal({
                 name,
                 image: imageName,
                 instanceId: selectedInstance,
-                domain: finalDomainConfig, // Novo campo de domínio
+                domain: finalDomainConfig,
                 envVariables: finalEnvVars.length > 0 ? finalEnvVars : undefined,
                 ports: finalPorts.length > 0 ? finalPorts : undefined,
                 volumes: finalVolumes.length > 0 ? finalVolumes : undefined,
@@ -422,8 +413,6 @@ export function CreateContainerModal({
         }
     }
 
-    // --- Renderizadores Específicos (Estilo Atualizado) ---
-
     const renderPortInputs = () => {
         return (
             <div className="space-y-2">
@@ -434,7 +423,6 @@ export function CreateContainerModal({
                 </div>
 
                 {ports.map((item) => {
-                    // Validação visual
                     const isConflict = item.publicPort && usedPorts.includes(parseInt(item.publicPort, 10));
 
                     return (
@@ -488,13 +476,15 @@ export function CreateContainerModal({
     const renderVolumeInputs = () => {
         return (
             <div className="space-y-2">
-                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 px-1">
-                    <span className="text-xs font-medium text-muted-foreground">Nome do Volume (Host)</span>
+                {/* Grid atualizado para incluir a coluna de Limite */}
+                <div className="grid grid-cols-[1fr_1fr_100px_auto] gap-2 px-1">
+                    <span className="text-xs font-medium text-muted-foreground">Nome do Volume</span>
                     <span className="text-xs font-medium text-muted-foreground">Caminho no Container</span>
+                    <span className="text-xs font-medium text-muted-foreground">Limite (GB)</span>
                     <span className="w-8"></span>
                 </div>
                 {volumes.map((item) => (
-                    <div key={item.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                    <div key={item.id} className="grid grid-cols-[1fr_1fr_100px_auto] gap-2 items-center">
                         <Input
                             type="text"
                             placeholder="Ex: dados-db"
@@ -507,6 +497,15 @@ export function CreateContainerModal({
                             placeholder={selectedTemplate && selectedTemplate.dataPath ? `Ex: ${selectedTemplate.dataPath}` : "Ex: /var/data/mysql"}
                             value={item.containerPath}
                             onChange={(e) => handleVolumeChange(item.id, 'containerPath', e.target.value)}
+                            disabled={isSubmitting}
+                        />
+                        {/* Input para Limite em GB */}
+                        <Input
+                            type="number"
+                            min="0"
+                            placeholder="Ilimitado"
+                            value={item.limitGB}
+                            onChange={(e) => handleVolumeChange(item.id, 'limitGB', e.target.value)}
                             disabled={isSubmitting}
                         />
                         <Button
@@ -525,7 +524,6 @@ export function CreateContainerModal({
         )
     }
 
-    // Novo renderizador para a aba de Domínio
     const renderDomainInputs = () => {
         return (
             <div className="space-y-4">
@@ -591,13 +589,13 @@ export function CreateContainerModal({
                     <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
                         <div className="overflow-y-auto px-1 py-4">
                             <Tabs defaultValue="general" className="space-y-4">
-                                <TabsList className="grid grid-cols-6 w-full"> {/* Aumentado para 6 colunas */}
+                                <TabsList className="grid grid-cols-6 w-full">
                                     <TabsTrigger value="general">Geral</TabsTrigger>
                                     <TabsTrigger value="ports">Portas</TabsTrigger>
                                     <TabsTrigger value="environment">Ambiente</TabsTrigger>
                                     <TabsTrigger value="volumes">Volumes</TabsTrigger>
                                     <TabsTrigger value="network">Rede</TabsTrigger>
-                                    <TabsTrigger value="domain">Domínio</TabsTrigger> 
+                                    <TabsTrigger value="domain">Domínio</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="general" className="space-y-4">
@@ -759,11 +757,9 @@ export function CreateContainerModal({
                                     </div>
                                 </TabsContent>
 
-                                {/* Nova aba de Domínio */}
                                 <TabsContent value="domain" className="space-y-4">
                                     {renderDomainInputs()}
                                 </TabsContent>
-                                {/* Fim da nova aba */}
 
                             </Tabs>
                         </div>
