@@ -8,10 +8,12 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -19,21 +21,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient } from "@/lib/api-client"
 import type { Role, User } from "@/lib/types"
 import {
+  AlertTriangle,
   ArrowUpDown,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Edit2,
+  Eye,
   Loader2,
   Plus,
+  Save,
   Search,
   Shield,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -41,6 +49,16 @@ import { useAuth } from "../auth-context"
 
 // Tipos auxiliares
 type RoleName = "ADMIN" | "OPERATOR" | "OPERATOR_N2" | "VIEWER"
+
+// Interface para os detalhes completos da role (vinda do getRoleById)
+interface RoleDetails {
+  id: string
+  name: string
+  permissions: Record<string, string[]>
+}
+
+// Tipo para todas as permissões do sistema
+type SystemPermissions = Record<string, string[]>
 
 // Tipo auxiliar para ordenação
 type SortConfig = {
@@ -104,6 +122,24 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState<UserFormData>(defaultFormData)
 
+  // --- Estados de Detalhes/Edição da Role ---
+  const [isRoleDetailsOpen, setIsRoleDetailsOpen] = useState(false)
+  const [roleDetailsLoading, setRoleDetailsLoading] = useState(false)
+  const [selectedRole, setSelectedRole] = useState<RoleDetails | null>(null)
+
+  // Estados específicos para edição/criação da Role
+  const [isEditingRole, setIsEditingRole] = useState(false)
+  const [isCreatingRole, setIsCreatingRole] = useState(false)
+  const [allSystemPermissions, setAllSystemPermissions] = useState<SystemPermissions | null>(null)
+  const [editedRoleName, setEditedRoleName] = useState("")
+  const [selectedPermissionsSet, setSelectedPermissionsSet] = useState<Set<string>>(new Set())
+  const [isSavingRole, setIsSavingRole] = useState(false)
+
+  // --- Estados para Exclusão de Role ---
+  const [isDeleteRoleModalOpen, setIsDeleteRoleModalOpen] = useState(false)
+  const [roleToDelete, setRoleToDelete] = useState<{ id: string, name: string } | null>(null)
+  const [isDeletingRole, setIsDeletingRole] = useState(false)
+
   // --- Estados de Paginação ---
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -121,9 +157,8 @@ export default function UsersPage() {
       const canReadUsers = userCan("read:users:all")
       const canReadRoles = userCan("read:roles")
 
-      // Assumindo que getAllUsers aceita page e limit, mas getRoles não precisa
       const [usersResponse, rolesResponse] = await Promise.all([
-        canReadUsers ? apiClient.getAllUsers({page, limit}) : Promise.resolve({ items: [], totalPages: 1, totalItems: 0 }),
+        canReadUsers ? apiClient.getAllUsers({ page, limit }) : Promise.resolve({ items: [], totalPages: 1, totalItems: 0 }),
         canReadRoles ? apiClient.getRoles() : Promise.resolve([]),
       ])
 
@@ -156,7 +191,7 @@ export default function UsersPage() {
     fetchUsersAndRoles()
   }, [isAuthLoading, fetchUsersAndRoles])
 
-  // --- Lógica de Ordenação e Filtro (Local, na página atual) ---
+  // --- Lógica de Ordenação e Filtro ---
   const handleSort = (key: string) => {
     setSortConfig((current) => {
       if (current?.key === key) {
@@ -167,11 +202,9 @@ export default function UsersPage() {
   }
 
   const filteredAndSortedUsers = useMemo(() => {
-    // 1. Filtragem Local
     let result = users.filter((user) => {
       if (!searchTerm) return true
       const term = searchTerm.toLowerCase()
-      // Filtra por nome, email ou função
       return (
         user.name.toLowerCase().includes(term) ||
         user.email.toLowerCase().includes(term) ||
@@ -179,13 +212,11 @@ export default function UsersPage() {
       )
     })
 
-    // 2. Ordenação Local
     if (sortConfig !== null) {
       result.sort((a, b) => {
         let aValue: any
         let bValue: any
 
-        // Tratamento especial para objetos aninhados (role)
         if (sortConfig.key === "role") {
           aValue = a.role.name
           bValue = b.role.name
@@ -214,7 +245,7 @@ export default function UsersPage() {
     }
   }
 
-  // --- Handlers (CRUD) ---
+  // --- Handlers (CRUD Usuários) ---
   const handleAddUser = () => {
     setEditingUser(null)
     const defaultRole = roles.length > 0 ? (roles[0].name as RoleName) : "VIEWER"
@@ -238,7 +269,6 @@ export default function UsersPage() {
     if (window.confirm("Tem certeza que deseja deletar este usuário?")) {
       try {
         await apiClient.deleteUser(userId)
-        // Se deletar, recarrega a página para manter consistência da paginação
         fetchUsersAndRoles()
       } catch (error) {
         console.error("Falha ao deletar usuário:", error)
@@ -273,9 +303,139 @@ export default function UsersPage() {
     }
   }
 
-  // --- Componente auxiliar de Header ---
-  const SortableTh = ({ label, sortKey, className = "" }: { label: string, sortKey: string, className?: string }) => (
-    <th className={`text-left py-3 px-4 text-sm font-medium text-muted-foreground ${className}`}>
+  // --- Handlers (Roles) ---
+
+  const handleViewRole = async (roleId: string) => {
+    setIsRoleDetailsOpen(true)
+    setRoleDetailsLoading(true)
+    setIsEditingRole(false)
+    setIsCreatingRole(false)
+    setSelectedRole(null)
+
+    try {
+      const roleData: RoleDetails = await apiClient.getRoleById(roleId)
+      setSelectedRole(roleData)
+      setEditedRoleName(roleData.name)
+
+      const currentPermissions = new Set<string>()
+      Object.values(roleData.permissions).forEach((group) => {
+        group.forEach((perm) => currentPermissions.add(perm))
+      })
+      setSelectedPermissionsSet(currentPermissions)
+
+      if (!allSystemPermissions) {
+        const permissionsData: SystemPermissions = await apiClient.getPermissions()
+        setAllSystemPermissions(permissionsData)
+      }
+
+    } catch (error) {
+      console.error("Erro ao buscar detalhes da role:", error)
+      toast.error("Não foi possível carregar os detalhes da função.")
+      setIsRoleDetailsOpen(false)
+    } finally {
+      setRoleDetailsLoading(false)
+    }
+  }
+
+  const handleOpenCreateRole = async () => {
+    setIsRoleDetailsOpen(true)
+    setIsCreatingRole(true)
+    setIsEditingRole(false)
+    setSelectedRole(null)
+    setEditedRoleName("")
+    setSelectedPermissionsSet(new Set())
+
+    setRoleDetailsLoading(true)
+    try {
+      if (!allSystemPermissions) {
+        const permissionsData: SystemPermissions = await apiClient.getPermissions()
+        setAllSystemPermissions(permissionsData)
+      }
+    } catch (error) {
+      console.error("Erro ao buscar permissões:", error)
+      toast.error("Erro ao carregar permissões do sistema.")
+      setIsRoleDetailsOpen(false)
+    } finally {
+      setRoleDetailsLoading(false)
+    }
+  }
+
+  // 1. Abre o modal de confirmação
+  const handleOpenDeleteRoleModal = (roleId: string, roleName: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Impede abrir o modal de detalhes
+    setRoleToDelete({ id: roleId, name: roleName })
+    setIsDeleteRoleModalOpen(true)
+  }
+
+  // 2. Executa a exclusão
+  const handleConfirmDeleteRole = async () => {
+    if (!roleToDelete) return
+
+    setIsDeletingRole(true)
+    try {
+      await apiClient.deleteRole(roleToDelete.id)
+      toast.success("Função removida com sucesso!")
+      fetchUsersAndRoles() // Recarrega a lista
+      setIsDeleteRoleModalOpen(false)
+      setRoleToDelete(null)
+    } catch (error) {
+      console.error("Falha ao deletar função:", error)
+      toast.error("Erro ao deletar função. Verifique se ela não está em uso.")
+    } finally {
+      setIsDeletingRole(false)
+    }
+  }
+
+  const togglePermission = (permission: string) => {
+    const newSet = new Set(selectedPermissionsSet)
+    if (newSet.has(permission)) {
+      newSet.delete(permission)
+    } else {
+      newSet.add(permission)
+    }
+    setSelectedPermissionsSet(newSet)
+  }
+
+  const handleSaveRole = async () => {
+    if (!editedRoleName.trim()) {
+      toast.warning("O nome da função é obrigatório.")
+      return
+    }
+
+    setIsSavingRole(true)
+    try {
+      const payload = {
+        name: editedRoleName,
+        permissions: Array.from(selectedPermissionsSet)
+      }
+
+      if (isCreatingRole) {
+        await apiClient.createRole(payload)
+        toast.success("Nova função criada com sucesso!")
+      } else {
+        if (!selectedRole) return
+        await apiClient.updateRole(selectedRole.id, payload)
+        toast.success("Função atualizada com sucesso!")
+      }
+
+      setIsRoleDetailsOpen(false)
+      setIsEditingRole(false)
+      setIsCreatingRole(false)
+
+      fetchUsersAndRoles()
+
+    } catch (error) {
+      console.error("Erro ao salvar função:", error)
+      toast.error("Falha ao salvar a função.")
+    } finally {
+      setIsSavingRole(false)
+    }
+  }
+
+  // --- Componentes de Renderização Auxiliares ---
+
+  const SortableHead = ({ label, sortKey }: { label: string, sortKey: string }) => (
+    <TableHead>
       <Button
         variant="ghost"
         onClick={() => handleSort(sortKey)}
@@ -284,213 +444,355 @@ export default function UsersPage() {
         {label}
         <ArrowUpDown className="h-3 w-3" />
       </Button>
-    </th>
+    </TableHead>
   )
 
-  // --- Renderização ---
-  return (
-    <ProtectedLayout title="Usuários" description="Gerenciar usuários e suas funções no sistema">
-      {/* Tabela de usuários */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuários do Sistema</CardTitle>
-          <CardDescription>Total de {totalItems} usuários cadastrados</CardDescription>
-        </CardHeader>
-        <CardContent>
+  const LoadingRow = () => (
+    <TableRow>
+      <TableCell colSpan={6} className="text-center py-10">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
+      </TableCell>
+    </TableRow>
+  )
 
-          {/* Filtros e Controles */}
-          <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-end md:items-center">
-            {/* Barra de Pesquisa */}
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filtrar nesta página..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+  // Renderiza a lista de permissões
+  const renderPermissionsContent = () => {
+    const isEditingOrCreate = isEditingRole || isCreatingRole
 
-            {/* Seletor de Limite */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Itens por pág:</span>
-              <Select
-                value={String(limit)}
-                onValueChange={(val) => {
-                  setLimit(Number(val))
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger className="w-[70px]">
-                  <SelectValue placeholder="10" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+    if (isEditingOrCreate && allSystemPermissions) {
+      return (
+        <div className="grid gap-6 py-2">
+          <div className="space-y-2 mb-4">
+            <Label htmlFor="role-name">Nome da Função</Label>
+            <Input
+              id="role-name"
+              value={editedRoleName}
+              onChange={(e) => setEditedRoleName(e.target.value)}
+              placeholder="Ex: SUPORTE_N1"
+            />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  {/* Headers Ordenáveis */}
-                  <SortableTh label="Nome" sortKey="name" />
-                  <SortableTh label="Email" sortKey="email" />
-                  <SortableTh label="Telefone" sortKey="phone" />
-                  <SortableTh label="Função" sortKey="role" />
-                  <SortableTh label="Criado em" sortKey="createdAt" />
-                  <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="border-t pt-4">
+            <Label className="mb-4 block text-base">Permissões do Sistema</Label>
+            {Object.entries(allSystemPermissions).map(([category, perms]) => (
+              <div key={category} className="space-y-3 mb-6">
+                <div className="flex items-center gap-2 border-b pb-1">
+                  <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                    {category}
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {perms.map((permission) => {
+                    const isChecked = selectedPermissionsSet.has(permission)
+                    return (
+                      <label
+                        key={permission}
+                        className={`flex items-center gap-3 p-2 rounded-md border transition-all cursor-pointer ${isChecked
+                          ? "bg-primary/10 border-primary"
+                          : "bg-background border-border hover:border-primary/50"
+                          }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => togglePermission(permission)}
+                          className="w-4 h-4 accent-primary rounded-sm cursor-pointer"
+                        />
+                        <span className={`font-mono text-xs ${isChecked ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                          {permission}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (selectedRole && Object.entries(selectedRole.permissions).length > 0) {
+      return (
+        <div className="grid gap-6 py-2">
+          {Object.entries(selectedRole.permissions).map(([category, perms]) => (
+            <div key={category} className="space-y-3">
+              <div className="flex items-center gap-2 border-b pb-1">
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                  {category}
+                </h4>
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 rounded-full">
+                  {perms.length}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {perms.map((permission) => (
+                  <div
+                    key={permission}
+                    className="flex items-center gap-2 text-sm p-2 rounded-md bg-secondary/30 border border-transparent"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="font-mono text-xs">{permission}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        Esta função não possui permissões explícitas listadas.
+      </div>
+    )
+  }
+
+  const getModalTitle = () => {
+    if (isCreatingRole) return "Criar Nova Função"
+    if (isEditingRole) return "Editar Função e Permissões"
+    return `Detalhes da Função: ${selectedRole?.name}`
+  }
+
+  const getModalDescription = () => {
+    if (isCreatingRole || isEditingRole) return "Configure o nome e as permissões de acesso para esta função."
+    return "Lista completa de permissões atribuídas a esta função."
+  }
+
+  return (
+    <ProtectedLayout title="Usuários & Acessos" description="Gerencie usuários, funções e níveis de acesso">
+      <div className="space-y-6">
+        <Tabs defaultValue="users" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="users">Usuários</TabsTrigger>
+            <TabsTrigger value="roles">Funções e Permissões</TabsTrigger>
+          </TabsList>
+
+          {/* --- ABA DE USUÁRIOS --- */}
+          <TabsContent value="users" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Usuários do Sistema</CardTitle>
+                    <CardDescription>Gerencie quem tem acesso à plataforma ({totalItems} total)</CardDescription>
+                  </div>
+                  {userCan("create:users") && (
+                    <Button onClick={handleAddUser} className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Adicionar Usuário
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Filtros */}
+                <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-end md:items-center">
+                  <div className="relative w-full max-w-sm">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Filtrar nesta página..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">Itens por pág:</span>
+                    <Select
+                      value={String(limit)}
+                      onValueChange={(val) => {
+                        setLimit(Number(val))
+                        setPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="w-[70px]">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableHead label="Nome" sortKey="name" />
+                        <SortableHead label="Email" sortKey="email" />
+                        <SortableHead label="Telefone" sortKey="phone" />
+                        <SortableHead label="Função" sortKey="role" />
+                        <SortableHead label="Criado em" sortKey="createdAt" />
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
+                        <LoadingRow />
+                      ) : filteredAndSortedUsers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                            {searchTerm ? "Nenhum usuário encontrado para a busca." : "Nenhum usuário cadastrado."}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredAndSortedUsers.map((user) => (
+                          <TableRow key={user.id} className="hover:bg-secondary/50">
+                            <TableCell className="font-medium">{user.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                            <TableCell className="text-muted-foreground">{formatPhone(user.phone)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={getRoleBadgeClass(user.role.name)}>
+                                <Shield className="w-3 h-3 mr-1" />
+                                {user.role.name}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {userCan("update:partial:user") && (
+                                  <Button size="sm" variant="ghost" onClick={() => handleEditUser(user)}>
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {userCan("delete:user") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginação */}
+                <div className="flex items-center justify-between space-x-2 py-4 border-t mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Total: {totalItems}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(1)}
+                      disabled={page === 1 || isLoading}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1 || isLoading}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm font-medium">
+                      {page} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages || isLoading}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(totalPages)}
+                      disabled={page === totalPages || isLoading}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- ABA DE FUNÇÕES --- */}
+          <TabsContent value="roles" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Funções Disponíveis</CardTitle>
+                    <CardDescription>Definições de níveis de acesso e permissões. Clique em um card para ver detalhes.</CardDescription>
+                  </div>
+                  {userCan("create:roles") && (
+                    <Button onClick={handleOpenCreateRole} className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Adicionar Função
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ) : filteredAndSortedUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                      {searchTerm ? "Nenhum usuário encontrado para a busca nesta página." : "Nenhum usuário encontrado."}
-                    </TableCell>
-                  </TableRow>
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
                 ) : (
-                  filteredAndSortedUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-border hover:bg-secondary/50 transition-colors">
-                      <td className="py-3 px-4 text-sm text-foreground">{user.name}</td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">{user.email}</td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">{formatPhone(user.phone)}</td>
-                      <td className="py-3 px-4 text-sm">
-                        <Badge variant="outline" className={getRoleBadgeClass(user.role.name)}>
-                          <Shield className="w-3 h-3 mr-1" />
-                          {user.role.name}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">{formatDate(user.createdAt)}</td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {userCan("update:partial:user") && (
-                            <Button size="sm" variant="outline" onClick={() => handleEditUser(user)} className="gap-1">
-                              <Edit2 className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {userCan("delete:user") && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="gap-1"
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {roles.map((role) => (
+                      <div
+                        key={role.id}
+                        className="group relative p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md hover:border-primary/50 transition-all cursor-pointer"
+                        onClick={() => handleViewRole(role.id)}
+                      >
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Eye className="w-4 h-4 text-primary" />
+                          {userCan("delete:role") && (
+                            <button
+                              onClick={(e) => handleOpenDeleteRoleModal(role.id, role.name, e)}
+                              className="text-destructive hover:text-destructive/80 transition-colors"
+                              title="Deletar função"
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  ))
+                        <h3 className="font-medium mb-2 flex items-center gap-2 group-hover:text-primary transition-colors">
+                          <Shield className="w-4 h-4" />
+                          {role.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {roleDescriptions[role.name as RoleName] || "Descrição da função não disponível."}
+                        </p>
+                      </div>
+                    ))}
+                    {roles.length === 0 && (
+                      <div className="col-span-3 text-center py-8 text-muted-foreground">
+                        Nenhuma função encontrada.
+                      </div>
+                    )}
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
 
-          {/* Rodapé de Paginação */}
-          <div className="flex items-center justify-between space-x-2 py-4 border-t border-border mt-4">
-            <div className="text-sm text-muted-foreground">
-              Total de {totalItems} registro(s).
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="text-sm font-medium mx-2">
-                Página {page} de {totalPages}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(1)}
-                disabled={page === 1 || isLoading}
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || isLoading}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || isLoading}
-              >
-                Próximo
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(totalPages)}
-                disabled={page === totalPages || isLoading}
-              >
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {userCan("create:users") && (
-        <div className="flex justify-end mt-6 mb-6">
-          <Button onClick={handleAddUser} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Adicionar Usuário
-          </Button>
-        </div>
-      )}
-
-      {/* Funções disponíveis (cards) - Mantido igual */}
-      {userCan("read:roles") && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Funções Disponíveis</CardTitle>
-            <CardDescription>Níveis de acesso e permissões do sistema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              {roles.map((role) => (
-                <div key={role.id} className="p-4 rounded-lg border border-border">
-                  <h3 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    {role.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {roleDescriptions[role.name as RoleName] || "Descrição da função não disponível."}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Botões e Modal - Mantidos iguais */}
-      {userCan("create:roles") && (
-        <div className="flex justify-end mt-6 mb-6">
-          <Button onClick={handleAddUser} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Adicionar Função
-          </Button>
-        </div>
-      )}
-
+      {/* --- Modal Único para Criar/Editar Usuário (Mantido) --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -502,36 +804,34 @@ export default function UsersPage() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Nome Completo</label>
-              <input
-                type="text"
+              <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
                 placeholder="Ex: João Silva"
                 disabled={isSubmitting}
+                className="mt-1"
               />
             </div>
             <div>
               <label className="text-sm font-medium">Email</label>
-              <input
+              <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
                 placeholder="Ex: joao@gpon.local"
                 disabled={isSubmitting}
+                className="mt-1"
               />
             </div>
             <div>
               <label className="text-sm font-medium">Telefone</label>
-              <input
-                type="text"
+              <Input
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
                 maxLength={15}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
                 placeholder="Ex: (11) 98888-7777"
                 disabled={isSubmitting}
+                className="mt-1"
               />
             </div>
             <div>
@@ -539,7 +839,7 @@ export default function UsersPage() {
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as RoleName })}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1"
                 disabled={isSubmitting || roles.length === 0}
               >
                 {roles.map((role) => (
@@ -551,23 +851,143 @@ export default function UsersPage() {
               <label className="text-sm font-medium">
                 {editingUser ? "Nova Senha (deixe em branco para manter)" : "Senha"}
               </label>
-              <input
+              <Input
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-foreground"
                 placeholder="******"
                 disabled={isSubmitting}
+                className="mt-1"
               />
             </div>
             <Button onClick={handleSaveUser} className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                editingUser ? "Atualizar Usuário" : "Criar Usuário"
-              )}
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              {editingUser ? "Atualizar Usuário" : "Criar Usuário"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Modal de Detalhes/Edição/Criação da Role --- */}
+      <Dialog
+        open={isRoleDetailsOpen}
+        onOpenChange={(open) => {
+          if (!isSavingRole) setIsRoleDetailsOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <div className="p-6 pb-2 border-b">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <Shield className="w-6 h-6 text-primary" />
+                {getModalTitle()}
+              </DialogTitle>
+              <DialogDescription>
+                {getModalDescription()}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 pt-2">
+            {roleDetailsLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Carregando detalhes...</p>
+              </div>
+            ) : (isCreatingRole || selectedRole) ? (
+              renderPermissionsContent()
+            ) : (
+              <div className="text-center py-8 text-destructive">
+                Erro ao carregar detalhes. Tente novamente.
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t bg-secondary/20 flex justify-between items-center">
+            {/* Footer com botões */}
+            {(isEditingRole || isCreatingRole) ? (
+              <div className="flex gap-2 justify-end w-full">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (isCreatingRole) setIsRoleDetailsOpen(false)
+                    else setIsEditingRole(false)
+                  }}
+                  disabled={isSavingRole}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSaveRole}
+                  disabled={isSavingRole}
+                >
+                  {isSavingRole ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {isCreatingRole ? "Criar Função" : "Salvar Alterações"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2 justify-end w-full">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsRoleDetailsOpen(false)}
+                >
+                  Fechar
+                </Button>
+                {userCan("update:role") && selectedRole && (
+                  <Button onClick={() => setIsEditingRole(true)}>
+                    <Edit2 className="w-4 h-4 mr-2" />
+                    Editar Função
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Modal de Confirmação de Exclusão de Role --- */}
+      <Dialog open={isDeleteRoleModalOpen} onOpenChange={setIsDeleteRoleModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Função</DialogTitle>
+            <DialogDescription>
+              Esta ação removerá permanentemente a função do sistema.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-4 py-4 bg-muted/50 p-4 rounded-md border border-destructive/20">
+            <div className="p-2 rounded-full bg-destructive/10">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-semibold">Função a ser excluída</Label>
+              <div className="text-sm text-muted-foreground font-mono">
+                {roleToDelete?.name || "..."}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsDeleteRoleModalOpen(false)} disabled={isDeletingRole}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteRole}
+              disabled={isDeletingRole}
+              className="gap-2"
+            >
+              {isDeletingRole ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </ProtectedLayout>

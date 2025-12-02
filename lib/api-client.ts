@@ -126,6 +126,34 @@ export const apiClient = {
     return fetchWithAuth("/roles")
   },
 
+  async getRoleById(id: string) {
+    return fetchWithAuth(`/roles/${id}`)
+  },
+
+  async createRole(role: {name: string, permissions: string[]}) {
+    return fetchWithAuth("/roles", {
+      method: "POST",
+      body: JSON.stringify(role),
+    })
+  },
+
+  async updateRole(id: string, payload: {name: string, permissions: string[]}) {
+    return fetchWithAuth(`/roles/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async deleteRole(id: string) {
+    return fetchWithAuth(`/roles/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async getPermissions() {
+    return fetchWithAuth("/permissions")
+  },
+
   async getSettings() {
     return fetchWithAuth("/settings")
   },
