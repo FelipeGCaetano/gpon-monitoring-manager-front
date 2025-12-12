@@ -43,6 +43,7 @@ import {
   Trash2
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { io } from "socket.io-client"; // <--- Importação adicionada
 import { useAuth } from "../auth-context"
 
 const formatDate = (dateString: Date | string) => {
@@ -89,6 +90,52 @@ export default function ContainersPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [containerToDelete, setContainerToDelete] = useState<string | null>(null)
   const [deleteVolumes, setDeleteVolumes] = useState(false)
+
+  // --- Lógica de WebSocket (Real-time Status) ---
+  useEffect(() => {
+    // Use a variável de ambiente se disponível, ou fallback para localhost
+    // Nota: A porta deve corresponder à porta onde seu backend está rodando (8000 pelos logs ou 3333 pelo config)
+    const socketUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      console.log("[Front] Conectado ao socket de monitoramento");
+    });
+
+    socket.on("container_event", (event: { id: string; name: string; status: string }) => {
+      console.log("[Front] Evento recebido:", event);
+
+      setContainers((currentContainers) => {
+        return currentContainers.map((container) => {
+          // Verifica se o ID do evento bate com o ID do container na lista
+          if (container.id === event.id) {
+            let newStatus = container.status;
+
+            // Mapeia os status do Docker (start, stop, die) para os do seu sistema (RUNNING, STOPPED)
+            if (event.status === "start") {
+              newStatus = "RUNNING";
+            } else if (event.status === "stop" || event.status === "die") {
+              newStatus = "STOPPED";
+            }
+
+            // Se o status mudou, retorna o objeto atualizado
+            if (newStatus !== container.status) {
+              return { ...container, status: newStatus };
+            }
+          }
+          return container;
+        });
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+  // ----------------------------------------------
 
   // ✅ Busca apenas Paginada (Sem enviar search/sort para API)
   const fetchContainers = useCallback(async () => {
@@ -195,7 +242,9 @@ export default function ContainersPage() {
     try {
       if (action === "stop") await apiClient.stopContainer(container.id)
       else await apiClient.startContainer(container.id)
-      await fetchContainers()
+      // O fetchContainers aqui é opcional se o socket estiver funcionando, 
+      // mas é bom manter como fallback
+      // await fetchContainers() 
     } catch (error) {
       console.error(`Falha ao ${action} o container:`, error)
     } finally {
@@ -207,7 +256,7 @@ export default function ContainersPage() {
     setIsSubmitting(containerId)
     try {
       await apiClient.restartContainer(containerId)
-      await fetchContainers()
+      // await fetchContainers() // Socket cuidará de atualizar para running
     } catch (error) {
       console.error("Falha ao reiniciar o container:", error)
     } finally {
@@ -229,7 +278,6 @@ export default function ContainersPage() {
     setIsSubmitting(containerToDelete)
     try {
       // Passa o ID e o booleano deleteVolumes
-      // O apiClient deve montar a URL como: /containers/{id}?deleteVolumes={deleteVolumes}
       await apiClient.deleteContainer(containerToDelete, deleteVolumes)
 
       await fetchContainers()
